@@ -1,0 +1,11 @@
+node_modules/
+.catalog-cache/
+.runtime/
+backups/
+exports/
+*.log
+*.backup.json
+league-board-*.json
+.env*
+test-results/
+.DS_Store
