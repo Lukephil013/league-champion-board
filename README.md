@@ -20,6 +20,7 @@ The included `PROJECT.md` registers the launcher with a compatible Center projec
 - Use **+ Add** as the keyboard/touch alternative. A placed champion’s **•••** menu offers Move, Copy, reorder, and Remove. Accounts cannot contain duplicate placements.
 - Click a portrait or **Notes** to edit its shared notebook. The small gold corner mark indicates a nonempty notebook. Changes save automatically.
 - Removing a placement or an entire account keeps every champion notebook. **Undo** reverses the last account/placement change without rolling back later note edits.
+- Use an account’s **Edit account focus** action to describe its purpose. Champion menus include **Set role** and **Edit placement reminder** for account-specific context such as autofill or tentative picks. Those labels move/copy with the placement; shared notebooks remain unchanged.
 
 The first launch starts with no account assignments and 14 concise notebooks from a jungle-pool discussion. Suggestions are labeled separately from observations; item ideas are experiments, not maintained build recommendations. Edited or cleared notes are never replaced by the starter notes.
 
@@ -27,7 +28,7 @@ The first launch starts with no account assignments and 14 concise notebooks fro
 
 Accounts, placements, and edited notes are stored only in this browser profile’s local storage, under `league-champion-board:v1`. The local server never receives them. Clearing site data, using a different browser/profile, or moving to a different address will not carry them over automatically.
 
-Use **Export backup** regularly, especially before clearing browser data. Keep the downloaded `league-board-YYYY-MM-DD.json` outside the repository, or inside the ignored `backups/` folder. **Import** validates the file and asks before replacing the board. A failed import does not change existing data. Import also provides recovery if saved data could not be read.
+Use **Export backup** regularly, especially before clearing browser data. The preview lets you copy the JSON text or choose **Download JSON**. Keep the downloaded `league-board-YYYY-MM-DD.json` outside the repository, or inside the ignored `backups/` folder. **Import** validates the file and asks before replacing the board. A failed import does not change existing data. Import also provides recovery if saved data could not be read. Existing version 1 backups remain compatible; new backups also preserve account focus, roles, and conditional reminders.
 
 If storage is full or unavailable, a red banner and **Not saved** indicator appear. Export before closing. Opening multiple tabs is supported; if an external change arrives while this tab has unsaved edits, saving pauses so you can export before reloading.
 

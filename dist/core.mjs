@@ -1,4 +1,5 @@
 export const STORAGE_KEY = 'league-champion-board:v1';
+export const ROLES = ['Top','Jungle','Mid','ADC','Support'];
 export const SEEDS = {
   JarvanIV: 'YOUR OBSERVATIONS\nFlexible default. Create early pressure, disrupt several lanes, and turn weak points into objectives. Damage when ahead; bruiser options and reliable engage when behind.\n\nWhat feels good: being able to create the game without being locked into one win condition.',
   XinZhao: 'YOUR OBSERVATIONS\nFamiliar backup for forcing early fights and counterjungling. Turn those fights into objective leads.\n\nFROM THE DISCUSSION\nA more specialized aggression tool than J4; options can narrow when behind.',
@@ -29,7 +30,16 @@ export function validateState(raw) {
   const seen = new Set();
   const accounts = raw.accounts.map(a => {
     if (!record(a) || !id(a.id) || seen.has(a.id) || typeof a.name !== 'string' || !a.name.trim() || a.name.length > 80 || !Array.isArray(a.champions) || a.champions.length > 1000 || a.champions.some(c => !id(c)) || new Set(a.champions).size !== a.champions.length) fail();
-    seen.add(a.id); return { id: a.id, name: a.name.trim(), champions: [...a.champions] };
+    const account = { id: a.id, name: a.name.trim(), champions: [...a.champions] };
+    if (a.focus !== undefined) { if(typeof a.focus !== 'string' || a.focus.length > 1000) fail(); account.focus=a.focus; }
+    if (a.championDetails !== undefined) {
+      if(!record(a.championDetails))fail(); account.championDetails={};
+      for(const [champion,detail] of Object.entries(a.championDetails)) {
+        if(!id(champion)||!a.champions.includes(champion)||!record(detail)||typeof detail.role!=='string'||(detail.role!==''&&!ROLES.includes(detail.role))||typeof detail.note!=='string'||detail.note.length>300)fail();
+        account.championDetails[champion]={role:detail.role,note:detail.note};
+      }
+    }
+    seen.add(a.id); return account;
   });
   if (Object.keys(raw.notes).length > 2000) fail();
   const notes = {};
@@ -43,7 +53,9 @@ export function placeChampion(state, championId, targetId, sourceId = null, copy
   if (!target || (sourceId && (!source || !source.champions.includes(championId)))) return state;
   if (sourceId === targetId && beforeId === championId) return state;
   if (sourceId !== targetId && target.champions.includes(championId)) throw new Error('That champion is already on this account.');
-  if (source && !copy) source.champions = source.champions.filter(c => c !== championId);
+  const detail=source?.championDetails?.[championId];
+  if(source && !copy) { source.champions=source.champions.filter(c=>c!==championId); if(sourceId!==targetId&&source.championDetails)delete source.championDetails[championId]; }
+  if(detail && sourceId!==targetId) { target.championDetails??={}; target.championDetails[championId]={...detail}; }
   if (!target.champions.includes(championId)) {
     const pos = beforeId ? target.champions.indexOf(beforeId) : -1;
     target.champions.splice(pos < 0 ? target.champions.length : pos, 0, championId);
