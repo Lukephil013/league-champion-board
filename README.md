@@ -8,6 +8,8 @@ Requires **Node.js 22 or newer**. No npm dependencies, API key, account login, o
 
 On Windows, double-click **Start Champion Board.cmd**. It starts the server in the background and opens your default browser. Reopening the launcher reuses the running server.
 
+To keep a Champion Board button on the taskbar, right-click **Install Taskbar Shortcut.ps1** and choose **Run with PowerShell** once. The installer builds a tiny local Windows launcher with the included gold-and-navy icon, starts it minimized, and adds it to Windows Startup. Clicking its taskbar button opens the board. Its notification-area menu can also open the board or exit the launcher. The launcher contains no network or account integration; it only calls the same local `launch.vbs` file.
+
 Alternatively, run `npm start`, then open **http://127.0.0.1:8789**. Keep that exact address and browser profile: `localhost`, a different port, and another browser have separate storage. The launcher reports conflicts instead of switching ports. When started with `npm start`, press Ctrl+C to stop it. The background launcher process ends when Windows signs out or restarts; closing the browser leaves it running.
 
 The included `PROJECT.md` registers the launcher with a compatible Center project hub.
@@ -55,7 +57,8 @@ To deliberately update the bundled public roster as a developer, run `npm run ca
 
 - `dist/`: interface, state logic, starter notes, bundled catalog and portraits.
 - `server.mjs` / `catalog.mjs`: localhost-only static server and explicit roster updates.
-- `launch.ps1` / `launch.vbs`: Windows background launcher.
+- `launch.ps1` / `launch.vbs`: Windows background server launcher.
+- `ChampionBoardLauncher.cs` / `Install Taskbar Shortcut.ps1`: source and installer for the taskbar launcher. The generated `.exe` stays local and is ignored by Git.
 
 Only the `dist/` assets and champion portrait cache are served. Requests to private project files are rejected. The server binds to `127.0.0.1`, validates the host, and requires same-origin refresh requests. No telemetry, cloud sync, Riot account connection, or website hosting is included.
 
