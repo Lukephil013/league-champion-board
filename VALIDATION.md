@@ -44,6 +44,10 @@ Account focus, role labels, and conditional placement reminders were also popula
 
 The current in-app browser drag automation emitted drag-start/drag-over events with an accepted move target but ended without a drop event. Role placement logic is covered by unit tests and the UI alternatives passed; this update's physical mouse drop was not independently verified. Temporary event diagnostics and test journal entries were removed. Chrome's account data and rendered role structure were verified through the DOM; Chrome screenshot capture timed out, so visual inspection used the in-app browser.
 
+## Champion card spacing
+
+Verified the populated main account in Chrome after tightening its role grids. Account cards are 76 pixels wide with 50 × 50 portraits, compact name and action spacing, and no repeated role badge inside a role section. The five requested role headings remain in ADC, Jungle, Mid, Top, Support order. Placement reminders such as Jax's autofill note remain visible, and the populated page measured 1084 pixels tall at the checked desktop viewport.
+
 ## Compact layout and settings
 
 Account portraits render at 50 × 50 pixels. The top bar and sidebar caption were removed, and the settings gear remains at the bottom-left of the desktop sidebar. On the same test board and desktop viewport, document height dropped from 1490 to 912 pixels. Checked the desktop layout and a 390 × 844 viewport without document-level horizontal overflow. Verified gear keyboard activation, Escape dismissal, export preview, import selection and replacement confirmation (cancelled), and opening champion notes. The exported board before and after these checks was identical. No saved-data schema changes were needed.
