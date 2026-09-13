@@ -10,7 +10,7 @@ function save() {
   clearTimeout(noteTimer);
   if(saveBlocked){$('#save-status').textContent='Saving paused';$('#notes-status').textContent='Saving paused';$('#journal-status').textContent='Saving paused';return false;}
   let result;try{result=persistState(localStorage,state);}catch{result={saved:false,message:'Browser storage is unavailable. Export a backup before closing this page.'};}
-  if(result.saved){dirty=false;$('#save-status').textContent='Saved in this browser';$('#notes-status').textContent='Saved';$('#journal-status').textContent='Saved';banner('');return true;}
+  if(result.saved){dirty=false;$('#save-status').textContent='Saved';$('#notes-status').textContent='Saved';$('#journal-status').textContent='Saved';banner('');return true;}
   dirty=true;$('#save-status').textContent='Not saved';$('#notes-status').textContent='Not saved — export a backup';$('#journal-status').textContent='Not saved — export a backup';banner(result.message);return false;
 }
 function notify(text,withUndo=false){$('#toast-text').textContent=text;$('#undo').hidden=!withUndo;$('#toast').hidden=false;}
@@ -153,10 +153,12 @@ $('#search').addEventListener('input',renderTray);
 $('#new-account').onclick=newAccount;
 $('#dismiss-toast').onclick=()=>$('#toast').hidden=true;
 $('#undo').onclick=()=>{if(undoEntry){if(!state.journal.some(e=>e.id===undoEntry.id))state.journal.unshift(undoEntry);activeEntryId=undoEntry.id;undoEntry=null;save();renderJournal();notify('Journal entry restored.');return;}if(!undoAccounts)return;const previous=undoAccounts;undoAccounts=null;state={...state,accounts:previous};save();renderBoard();renderTray();if(selectedChampion)renderNotePlacement();notify('Placement change undone.');};
-$('#export').onclick=()=>{save();$('#backup-text').value=JSON.stringify(state,null,2);$('#backup-dialog').showModal();};
+$('#settings').onclick=()=>$('#settings-dialog').showModal();
+$('#close-settings').onclick=()=>$('#settings-dialog').close();
+$('#export').onclick=()=>{$('#settings-dialog').close();save();$('#backup-text').value=JSON.stringify(state,null,2);$('#backup-dialog').showModal();};
 $('#close-backup').onclick=()=>$('#backup-dialog').close();
 $('#download-backup').onclick=()=>{const blob=new Blob([$('#backup-text').value],{type:'application/json'});const url=URL.createObjectURL(blob),a=el('a');a.href=url;a.download=`league-board-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('Backup download requested.');};
-$('#import').onclick=()=>$('#import-file').click();
+$('#import').onclick=()=>{$('#settings-dialog').close();$('#import-file').click();};
 $('#import-file').onchange=async()=>{
   const file=$('#import-file').files[0];$('#import-file').value='';if(!file)return;
   try {if(file.size>10*1024*1024)throw new Error('Backup is too large (maximum 10 MB).');const imported=validateState(JSON.parse(await file.text()));if(!await formDialog({title:'Replace this board?',description:`Restore ${imported.accounts.length} accounts and ${Object.keys(imported.notes).length} notebooks and ${imported.journal.length} journal entries from this backup. Export your current board first if you want to keep it.`,confirm:true,submit:'Restore backup'}))return;

@@ -5,3 +5,33 @@
 @media(max-width:1100px){.workspace{grid-template-columns:220px minmax(0,1fr)}.board-area,.roster.library-view,.journal-view{padding:1.5rem}.board-heading{flex-wrap:wrap}.journal-workspace{grid-template-columns:190px minmax(0,1fr);gap:1rem}.entry-toolbar{align-items:flex-start;flex-wrap:wrap}.heading-actions{flex-wrap:wrap}.role-grid{grid-template-columns:repeat(auto-fill,minmax(95px,1fr))}}
 @media(max-width:760px){.journal-workspace{grid-template-columns:1fr}.entry-sidebar{max-height:220px}.journal-empty{min-height:250px}.entry-toolbar{align-items:flex-end}#entry-body{min-height:330px}.account-sidebar{padding:1rem .6rem}.workspace{grid-template-columns:185px minmax(0,1fr)}.nav-item{font-size:.85rem;padding:.7rem .5rem}.board-area,.roster.library-view,.journal-view{padding:1.2rem}.role-grid{grid-template-columns:repeat(auto-fill,minmax(85px,1fr));gap:.6rem}}
 @media(max-width:620px){.workspace{display:block}.account-sidebar{position:static;max-height:none;min-height:0;border-right:0;border-bottom:1px solid var(--line);padding:.9rem 1rem}.sidebar-heading{margin-bottom:.5rem}#account-nav{display:flex;gap:.4rem;overflow:auto}#account-nav .nav-item{min-width:170px;max-width:210px;flex-shrink:0;margin:0}.sidebar-add{margin:.7rem .3rem .2rem}.sidebar-divider,.sidebar-hint{display:none}#journal-nav,#library-nav{display:inline-flex;width:auto;margin:.5rem .3rem 0;padding:.6rem .8rem}.board-area{min-height:0}.board-heading h2{font-size:1.35rem}.role-grid{grid-template-columns:repeat(auto-fill,minmax(93px,1fr))}.library-view .champion-tray{grid-template-columns:repeat(auto-fill,minmax(95px,1fr));gap:.65rem}.roster.library-view{padding:1.2rem}.journal-view{padding:1.2rem}.journal-workspace{gap:1rem}.entry-sidebar{max-height:170px}#entry-editor{padding:1rem}#entry-body{min-height:350px}.entry-toolbar{gap:.6rem}.entry-toolbar>div{max-width:190px}.role-heading{padding:.8rem 1rem}.top-actions #save-status{max-width:120px}.heading-actions button{font-size:.85rem}}
+
+/* Compact account board and sidebar settings. */
+.workspace{min-height:100dvh}
+.account-sidebar{height:100dvh;min-height:100dvh;max-height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.account-sidebar>button,.sidebar-heading,.sidebar-divider,.sidebar-settings{flex-shrink:0}
+#account-nav{min-height:0;overflow:auto}
+.sidebar-settings{margin-top:auto;padding:.9rem .3rem 0}
+.settings-button{display:grid;place-items:center;width:40px;height:40px;padding:0;border-radius:50%;color:var(--gold);background:transparent}
+.settings-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+.settings-heading h2{margin:0}
+.settings-heading button{font-size:1.3rem;padding:.15rem .6rem}
+.settings-actions{display:flex;gap:.65rem;flex-wrap:wrap}
+#settings-dialog #save-status{margin:1rem 0 0;color:var(--muted);font-size:.8rem}
+.board-area{min-height:100dvh;padding:1.25rem 1.5rem}
+.board-area .selected-focus{margin-bottom:1rem;font-size:.9rem}
+.role-section{margin-bottom:.7rem}
+.role-heading{padding:.45rem .8rem}
+.role-heading h3{font-size:1rem}
+.role-heading button{padding:.3rem .6rem;font-size:.8rem}
+.role-grid{grid-template-columns:repeat(auto-fill,88px);gap:.5rem .7rem;padding:.5rem .7rem;min-height:0}
+.role-grid .champ-card{width:88px;max-width:88px}
+.role-grid .champ-open img{width:50px;height:50px;aspect-ratio:1}
+.role-grid .champ-card.has-notes .champ-open:after{right:auto;left:40px;top:3px;width:6px;height:6px}
+.role-grid .champ-name{font-size:.8rem;min-height:2.5em;margin:.25rem 0 .15rem}
+.role-grid .role-badge{font-size:.7rem;padding:.1rem .3rem;margin-bottom:.3rem}
+.role-grid .card-actions button{font-size:.75rem;min-height:28px;padding:.2rem .25rem}
+.role-grid .placement-reminder{font-size:.75rem;margin-bottom:.3rem}
+.role-empty{margin:.3rem 0}
+.board-footer{padding-top:.75rem}
+@media(max-width:620px){.account-sidebar{height:auto;min-height:0;max-height:none;display:block}.sidebar-settings{padding-top:.6rem;margin-top:0}.board-area{padding:1rem;min-height:0}.role-grid{grid-template-columns:repeat(auto-fill,82px);gap:.5rem}.role-grid .champ-card{width:82px;max-width:82px}}
