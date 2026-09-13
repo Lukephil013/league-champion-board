@@ -1,4 +1,4 @@
-import { STORAGE_KEY, SHORTLIST, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, placeInRole, localDate, validDate } from './core.mjs';
+import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, placeInRole, localDate, validDate } from './core.mjs';
 const $ = s => document.querySelector(s);
 const el = (tag,className,text) => { const n=document.createElement(tag); if(className)n.className=className;if(text!==undefined)n.textContent=text;return n; };
 const button = (text,action,label) => {const b=el('button','',text);b.type='button';if(label)b.setAttribute('aria-label',label);b.addEventListener('click',action);return b;};
@@ -77,10 +77,9 @@ function card(c,account=null){
   item.append(actions);return item;
 }
 function renderTray(){
-  if(!catalog)return;const query=folded($('#search').value),shortOnly=$('#shortlist').getAttribute('aria-pressed')==='true';
+  if(!catalog)return;const query=folded($('#search').value);
   const alias={j4:'JarvanIV',kha:'Khazix',wukong:'MonkeyKing',nunu:'Nunu',reksai:'RekSai'};
-  const results=catalog.champions.filter(c=>query?(folded(c.name).includes(query)||folded(c.id).includes(query)||alias[query]===c.id):(!shortOnly||SHORTLIST.includes(c.id)));
-  if(shortOnly&&!query)results.sort((a,b)=>SHORTLIST.indexOf(a.id)-SHORTLIST.indexOf(b.id));
+  const results=catalog.champions.filter(c=>!query||folded(c.name).includes(query)||folded(c.id).includes(query)||alias[query]===c.id);
   $('#roster-count').textContent=`${results.length} / ${catalog.champions.length}`;
   $('#champion-tray').replaceChildren(...results.map(c=>card(c)));
   if(!results.length)$('#champion-tray').append(el('p','no-results','No champions match that search.'));
@@ -151,7 +150,6 @@ $('#notes-text').addEventListener('input',()=>{state.notes[selectedChampion]=$('
 $('#close-notes').onclick=()=>$('#notes-dialog').close();$('#notes-dialog').addEventListener('close',()=>{save();renderBoard();renderTray();selectedChampion=null;});
 $('#note-add').onclick=()=>addToAccount(selectedChampion,$('#note-account').value);
 $('#search').addEventListener('input',renderTray);
-for(const id of ['shortlist','all-champions'])$(`#${id}`).onclick=()=>{for(const other of ['shortlist','all-champions'])$(`#${other}`).setAttribute('aria-pressed',String(other===id));$('#search').value='';renderTray();};
 $('#new-account').onclick=newAccount;
 $('#dismiss-toast').onclick=()=>$('#toast').hidden=true;
 $('#undo').onclick=()=>{if(undoEntry){if(!state.journal.some(e=>e.id===undoEntry.id))state.journal.unshift(undoEntry);activeEntryId=undoEntry.id;undoEntry=null;save();renderJournal();notify('Journal entry restored.');return;}if(!undoAccounts)return;const previous=undoAccounts;undoAccounts=null;state={...state,accounts:previous};save();renderBoard();renderTray();if(selectedChampion)renderNotePlacement();notify('Placement change undone.');};

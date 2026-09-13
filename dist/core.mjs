@@ -16,7 +16,6 @@ export const SEEDS = {
   RekSai: 'FROM THE DISCUSSION\nSuggested for early weak-point pressure through tunnels, information, and unusual gank angles. The discussion described a less comfortable fallback than J4. An option to explore.',
   Volibear: 'FROM THE DISCUSSION\nSuggested as an early-aggression option with different build directions. Discussed briefly; no personal testing verdict recorded.'
 };
-export const SHORTLIST = Object.keys(SEEDS);
 export function initialState() { return { schemaVersion: 2, accounts: [], notes: { ...SEEDS }, journal: [] }; }
 export function localDate(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
 export function validDate(value) { return typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value+'T12:00:00Z')) && new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value; }
