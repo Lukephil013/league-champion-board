@@ -17,16 +17,19 @@ export const SEEDS = {
   Volibear: 'FROM THE DISCUSSION\nSuggested as an early-aggression option with different build directions. Discussed briefly; no personal testing verdict recorded.'
 };
 export const SHORTLIST = Object.keys(SEEDS);
-export function initialState() { return { schemaVersion: 1, accounts: [], notes: { ...SEEDS } }; }
+export function initialState() { return { schemaVersion: 2, accounts: [], notes: { ...SEEDS }, journal: [] }; }
+export function localDate(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
+export function validDate(value) { return typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value+'T12:00:00Z')) && new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value; }
+export function groupChampions(account) { return [...ROLES,'Unassigned'].map(role=>({role,champions:account.champions.filter(id=>(account.championDetails?.[id]?.role||'Unassigned')===role)})); }
 export function persistState(storage, state) {
   try { storage.setItem(STORAGE_KEY, JSON.stringify(state)); return { saved:true }; }
   catch { return { saved:false, message:'Browser storage is unavailable or full. Your current changes are still on screen. Export a backup before closing this page.' }; }
 }
 export function validateState(raw) {
-  const fail = () => { throw new Error('This file is not a valid version 1 Champion Board backup.'); };
+  const fail = () => { throw new Error('This file is not a valid Champion Board backup (versions 1 and 2 are supported).'); };
   const record = x => x !== null && typeof x === 'object' && !Array.isArray(x);
   const id = x => typeof x === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(x) && !['__proto__','constructor','prototype'].includes(x);
-  if (!record(raw) || raw.schemaVersion !== 1 || !Array.isArray(raw.accounts) || raw.accounts.length > 200 || !record(raw.notes)) fail();
+  if (!record(raw) || ![1,2].includes(raw.schemaVersion) || !Array.isArray(raw.accounts) || raw.accounts.length > 200 || !record(raw.notes)) fail();
   const seen = new Set();
   const accounts = raw.accounts.map(a => {
     if (!record(a) || !id(a.id) || seen.has(a.id) || typeof a.name !== 'string' || !a.name.trim() || a.name.length > 80 || !Array.isArray(a.champions) || a.champions.length > 1000 || a.champions.some(c => !id(c)) || new Set(a.champions).size !== a.champions.length) fail();
@@ -44,7 +47,23 @@ export function validateState(raw) {
   if (Object.keys(raw.notes).length > 2000) fail();
   const notes = {};
   for (const [key,value] of Object.entries(raw.notes)) { if (!id(key) || typeof value !== 'string' || value.length > 100000) fail(); notes[key] = value; }
-  return { schemaVersion: 1, accounts, notes };
+  const journal=raw.journal??(raw.schemaVersion===1?[]:null);
+  if(!Array.isArray(journal)||journal.length>10000)fail();
+  const entries=new Set();
+  const cleanJournal=journal.map(entry=>{
+    if(!record(entry)||!id(entry.id)||entries.has(entry.id)||!validDate(entry.date)||typeof entry.title!=='string'||entry.title.length>160||typeof entry.body!=='string'||entry.body.length>100000)fail();
+    entries.add(entry.id);return {id:entry.id,date:entry.date,title:entry.title,body:entry.body};
+  });
+  return { schemaVersion: 2, accounts, notes, journal:cleanJournal };
+}
+export function placeInRole(state, championId, targetId, role, sourceId=null, beforeId=null) {
+  if(![...ROLES,'Unassigned'].includes(role))throw new Error('Choose a valid role.');
+  const placed=placeChampion(state,championId,targetId,sourceId,false,beforeId);
+  if(placed===state && !state.accounts.find(a=>a.id===targetId)?.champions.includes(championId))return state;
+  const next=placed===state?structuredClone(state):placed,account=next.accounts.find(a=>a.id===targetId);
+  if(!account)return state;
+  account.championDetails??={};account.championDetails[championId]={role:role==='Unassigned'?'':role,note:account.championDetails[championId]?.note||''};
+  return next;
 }
 export function placeChampion(state, championId, targetId, sourceId = null, copy = false, beforeId = null) {
   const next = structuredClone(state);

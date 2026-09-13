@@ -14,10 +14,11 @@ The included `PROJECT.md` registers the launcher with a compatible Center projec
 
 ## Organize your champions
 
-- Add and name accounts. Use an account’s **•••** menu to rename it, change its order, or delete it.
+- Choose an account from the left sidebar. Its champions appear under **Top, Jungle, Mid, ADC, and Support** headings. Champions without a role appear under **Unassigned**. On narrow screens, account navigation moves above the board.
+- Add and name accounts. Use **Manage account** to rename it, change its order, edit its focus, or delete it.
 - Search the full roster by champion name; aliases include **J4**, **Kha**, and **Wukong**. Search includes all champions even while the conversation filter is selected.
-- Drag portraits from the tray into an account. Drag between accounts to move; drop before a portrait to reorder, or into empty account space to place at the end.
-- Use **+ Add** as the keyboard/touch alternative. A placed champion’s **•••** menu offers Move, Copy, reorder, and Remove. Accounts cannot contain duplicate placements.
+- Open **Champion library**, or use a role's **+ Add** button to search the full roster and add directly into that role. Drag a placed portrait onto another role to change its role, onto an account in the sidebar to move accounts, or before a portrait to reorder.
+- Use **+ Add** as the keyboard/touch alternative. A placed champion’s **•••** menu offers Set role, Move, Copy, reorder within its role, and Remove. Accounts cannot contain duplicate placements.
 - Click a portrait or **Notes** to edit its shared notebook. The small gold corner mark indicates a nonempty notebook. Changes save automatically.
 - Removing a placement or an entire account keeps every champion notebook. **Undo** reverses the last account/placement change without rolling back later note edits.
 - Use an account’s **Edit account focus** action to describe its purpose. Champion menus include **Set role** and **Edit placement reminder** for account-specific context such as autofill or tentative picks. Those labels move/copy with the placement; shared notebooks remain unchanged.
@@ -26,11 +27,19 @@ The first launch starts with no account assignments and 14 concise notebooks fro
 
 ## Saving and backups
 
-Accounts, placements, and edited notes are stored only in this browser profile’s local storage, under `league-champion-board:v1`. The local server never receives them. Clearing site data, using a different browser/profile, or moving to a different address will not carry them over automatically.
+Accounts, placements, champion notes, and journal entries are stored only in this browser profile’s local storage, under `league-champion-board:v1`. The key remains the same so existing boards upgrade in place; the data format is now version 2. The local server never receives them. Clearing site data, using a different browser/profile, or moving to a different address will not carry them over automatically.
 
-Use **Export backup** regularly, especially before clearing browser data. The preview lets you copy the JSON text or choose **Download JSON**. Keep the downloaded `league-board-YYYY-MM-DD.json` outside the repository, or inside the ignored `backups/` folder. **Import** validates the file and asks before replacing the board. A failed import does not change existing data. Import also provides recovery if saved data could not be read. Existing version 1 backups remain compatible; new backups also preserve account focus, roles, and conditional reminders.
+Use **Export backup** regularly, especially before clearing browser data. The preview lets you copy the JSON text or choose **Download JSON**. Keep the downloaded `league-board-YYYY-MM-DD.json` outside the repository, or inside the ignored `backups/` folder. **Import** validates the file and asks before replacing the board, including its journal. A failed import does not change existing data. Import also provides recovery if saved data could not be read. Existing version 1 backups remain compatible and start with an empty journal; new backups include dated entries, account focus, roles, and conditional reminders.
+
+Refresh other open board tabs after upgrading. When space allows, the app retains one pre-upgrade snapshot in browser storage at `league-champion-board:before-v2`; regular JSON exports remain the portable backup.
 
 If storage is full or unavailable, a red banner and **Not saved** indicator appear. Export before closing. Opening multiple tabs is supported; if an external change arrives while this tab has unsaved edits, saving pauses so you can export before reloading.
+
+## Daily journal
+
+Choose **General journal** in the sidebar, then **New entry**. Each entry has an editable date, optional title, and a free-form notebook. The date defaults to today in your local timezone. You can create multiple entries on the same day, revisit them from the newest-first list, and edit them at any time.
+
+The journal is shared across all accounts. Entries save automatically as you type, and pending edits flush when switching views or leaving the page. Deletion asks for confirmation and offers **Undo**. Account and champion placement changes never delete journal entries. Journal contents stay local and are included in JSON backups.
 
 ## Champion data
 

@@ -4,7 +4,7 @@ Verified on Windows with Node.js 25.9.0, September 12, 2026.
 
 ## Automated checks
 
-All 12 Node tests pass. They cover copying and moving between accounts, duplicate rejection without source removal, ordering, backup round-trips, malformed imports, shared and unplaced note preservation, account focus and role/reminder metadata, simulated storage quota errors, local asset serving, blocked private paths and foreign origins, and an offline refresh retaining the existing roster.
+All 17 Node tests pass. They cover copying and moving between accounts, duplicate rejection without source removal, ordering, backup round-trips, malformed imports, shared and unplaced note preservation, account focus and role/reminder metadata, simulated storage quota errors, local asset serving, blocked private paths and foreign origins, and an offline refresh retaining the existing roster. New cases cover version 1 to 2 migration, journal entries and date validation, multiple entries per day, role grouping, and changing roles while preserving notes and reminders.
 
 The browser modules pass Node's JavaScript syntax check. The bundled catalog contains 173 records with matching PNG portraits.
 
@@ -31,3 +31,15 @@ Stopped the development server and launched `Start Champion Board.cmd`. Verified
 Personal browser state, exports, and runtime logs are excluded from the public source repository.
 
 Account focus, role labels, and conditional placement reminders were also populated and verified through the browser controls. A before/after comparison confirmed existing shared notebooks were unchanged. Old version 1 backups remain compatible. File import was previously verified in the in-app browser; Chrome's extension requires file-URL access for automated file selection, so the subsequent account update used ordinary UI controls instead.
+
+## Journal and account sidebar update
+
+- Compared the real board's backup before and after migration: accounts, placement order, role/reminder metadata, and shared notebooks were unchanged. The journal started empty.
+- Switched accounts through the sidebar and verified role headings and the selected account view.
+- Created and edited dated journal entries, switched between entries and accounts, and reloaded with saved text intact.
+- Deleted an entry with confirmation and restored it with Undo.
+- Restored a version 2 backup containing journal entries and compared the complete exported state for equality. Rejected a backup with an impossible calendar date without changing any data.
+- Used keyboard controls to open navigation, search the full library, add a champion into a chosen role, and reorder placements. Undo restored the original placements.
+- Inspected the journal and account layout in the in-app browser, including a 390 × 844 journal viewport with no document-level horizontal overflow. Reset the viewport afterward.
+
+The current in-app browser drag automation emitted drag-start/drag-over events with an accepted move target but ended without a drop event. Role placement logic is covered by unit tests and the UI alternatives passed; this update's physical mouse drop was not independently verified. Temporary event diagnostics and test journal entries were removed. Chrome's account data and rendered role structure were verified through the DOM; Chrome screenshot capture timed out, so visual inspection used the in-app browser.
