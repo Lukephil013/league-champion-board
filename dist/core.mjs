@@ -1,5 +1,5 @@
 export const STORAGE_KEY = 'league-champion-board:v1';
-export const ROLES = ['Top','Jungle','Mid','ADC','Support'];
+export const ROLES = ['ADC','Jungle','Mid','Top','Support'];
 export const SEEDS = {
   JarvanIV: 'YOUR OBSERVATIONS\nFlexible default. Create early pressure, disrupt several lanes, and turn weak points into objectives. Damage when ahead; bruiser options and reliable engage when behind.\n\nWhat feels good: being able to create the game without being locked into one win condition.',
   XinZhao: 'YOUR OBSERVATIONS\nFamiliar backup for forcing early fights and counterjungling. Turn those fights into objective leads.\n\nFROM THE DISCUSSION\nA more specialized aggression tool than J4; options can narrow when behind.',

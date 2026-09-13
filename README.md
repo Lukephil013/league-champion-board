@@ -14,7 +14,7 @@ The included `PROJECT.md` registers the launcher with a compatible Center projec
 
 ## Organize your champions
 
-- Choose an account from the left sidebar. Its champions appear under **Top, Jungle, Mid, ADC, and Support** headings. Champions without a role appear under **Unassigned**. On narrow screens, account navigation moves above the board.
+- Choose an account from the left sidebar. Its champions appear under **ADC, Jungle, Mid, Top, and Support** headings. Champions without a role appear under **Unassigned**. On narrow screens, account navigation moves above the board.
 - Add and name accounts. Use **Manage account** to rename it, change its order, edit its focus, or delete it.
 - Search the full roster by champion name; aliases include **J4**, **Kha**, and **Wukong**. Search includes all champions even while the conversation filter is selected.
 - Open **Champion library**, or use a role's **+ Add** button to search the full roster and add directly into that role. Drag a placed portrait onto another role to change its role, onto an account in the sidebar to move accounts, or before a portrait to reorder.
