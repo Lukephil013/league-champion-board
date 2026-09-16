@@ -1,5 +1,8 @@
 export const STORAGE_KEY = 'league-champion-board:v1';
 export const ROLES = ['ADC','Jungle','Mid','Top','Support'];
+export function validOpggUrl(value) {
+  try {const u=new URL(value);const parts=u.pathname.split('/').filter(Boolean);return u.protocol==='https:'&&u.hostname==='op.gg'&&parts.length===4&&parts[0]==='lol'&&parts[1]==='summoners'&&/^[a-z0-9]+$/i.test(parts[2])&&parts[3].length>2;} catch{return false;}
+}
 export function lolalyticsUrl(championId) {
   if(typeof championId!=='string')throw new Error('Invalid champion ID.');
   const slug=championId==='MonkeyKing'?'wukong':championId.toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -40,6 +43,7 @@ export function validateState(raw) {
     if (!record(a) || !id(a.id) || seen.has(a.id) || typeof a.name !== 'string' || !a.name.trim() || a.name.length > 80 || !Array.isArray(a.champions) || a.champions.length > 1000 || a.champions.some(c => !id(c)) || new Set(a.champions).size !== a.champions.length) fail();
     const account = { id: a.id, name: a.name.trim(), champions: [...a.champions] };
     if (a.focus !== undefined) { if(typeof a.focus !== 'string' || a.focus.length > 1000) fail(); account.focus=a.focus; }
+    if (a.opggUrl !== undefined) { if(typeof a.opggUrl!=='string'||!validOpggUrl(a.opggUrl)||a.opggUrl.length>500)fail(); account.opggUrl=a.opggUrl; }
     if (a.championDetails !== undefined) {
       if(!record(a.championDetails))fail(); account.championDetails={};
       for(const [champion,detail] of Object.entries(a.championDetails)) {

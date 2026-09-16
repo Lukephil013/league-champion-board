@@ -21,15 +21,16 @@ The included `PROJECT.md` registers the launcher with a compatible Center projec
 - Search the full roster by champion name; aliases include **J4**, **Kha**, and **Wukong**.
 - Open **Champion library**, or use a role's **+ Add** button to search the full roster and add directly into that role. Drag a placed portrait onto another role to change its role, onto an account in the sidebar to move accounts, or before a portrait to reorder.
 - Use **+ Add** as the keyboard/touch alternative. A placed champion’s **•••** menu offers Set role, Move, Copy, reorder within its role, and Remove. Accounts cannot contain duplicate placements.
-- Click a portrait or **Notes** to edit its shared notebook. The small gold corner mark indicates a nonempty notebook. Changes save automatically.
+- Click a champion portrait to open its LoLalytics page in a new tab. Click the champion name or **Notes** to edit its shared notebook. The small gold corner mark indicates a nonempty notebook. Changes save automatically.
 - Removing a placement or an entire account keeps every champion notebook. **Undo** reverses the last account/placement change without rolling back later note edits.
 - Use an account’s **Edit account focus** action to describe its purpose. Champion menus include **Set role** and **Edit placement reminder** for account-specific context such as autofill or tentative picks. Those labels move/copy with the placement; shared notebooks remain unchanged.
+- Use **Manage account → Add OP.GG profile** to attach a complete OP.GG summoner URL. The selected account shows its region, Riot ID, and an **Open OP.GG ↗** link. The profile URL stays in browser storage and follows the account through backup and restore.
 
 The first launch starts with no account assignments and 14 concise notebooks from a jungle-pool discussion. Suggestions are labeled separately from observations; item ideas are experiments, not maintained build recommendations. Edited or cleared notes are never replaced by the starter notes.
 
 ## Saving and backups
 
-Accounts, placements, champion notes, and journal entries are stored only in this browser profile’s local storage, under `league-champion-board:v1`. The key remains the same so existing boards upgrade in place; the data format is now version 2. The local server never receives them. Clearing site data, using a different browser/profile, or moving to a different address will not carry them over automatically.
+Accounts, placements, OP.GG profile links, champion notes, and journal entries are stored only in this browser profile’s local storage, under `league-champion-board:v1`. The key remains the same so existing boards upgrade in place; the data format is now version 2. The local server never receives them. Clearing site data, using a different browser/profile, or moving to a different address will not carry them over automatically.
 
 Open the **Settings gear** at the bottom of the sidebar to use **Export backup** or **Import backup**. Export regularly, especially before clearing browser data. The preview lets you copy the JSON text or choose **Download JSON**. Keep the downloaded `league-board-YYYY-MM-DD.json` outside the repository, or inside the ignored `backups/` folder. **Import backup** validates the file and asks before replacing the board, including its journal. A failed import does not change existing data. Import also provides recovery if saved data could not be read. Existing version 1 backups remain compatible and start with an empty journal; new backups include dated entries, account focus, roles, and conditional reminders.
 

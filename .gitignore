@@ -10,4 +10,5 @@ exports/
 league-board-*.json
 .env*
 test-results/
+dist/local-account-profiles.json
 .DS_Store

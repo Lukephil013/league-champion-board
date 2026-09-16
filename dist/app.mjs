@@ -1,4 +1,4 @@
-import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, placeInRole, localDate, validDate, lolalyticsUrl } from './core.mjs';
+import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, placeInRole, localDate, validDate, lolalyticsUrl, validOpggUrl } from './core.mjs';
 const $ = s => document.querySelector(s);
 const el = (tag,className,text) => { const n=document.createElement(tag); if(className)n.className=className;if(text!==undefined)n.textContent=text;return n; };
 const button = (text,action,label) => {const b=el('button','',text);b.type='button';if(label)b.setAttribute('aria-label',label);b.addEventListener('click',action);return b;};
@@ -18,11 +18,11 @@ function commit(next,message) {if(next===state)return;undoAccounts=structuredClo
 function changeAccounts(fn,message){const next=structuredClone(state);fn(next.accounts);commit(next,message);}
 function nameOf(id){return champions.get(id)?.name||id;}
 function folded(s){return s.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');}
-function formDialog({title,description='',label='',value='',choices=null,submit='Save',confirm=false,optional=false,maxLength=80}) {
+function formDialog({title,description='',label='',value='',choices=null,submit='Save',confirm=false,optional=false,maxLength=80,type='text'}) {
   return new Promise(resolve=>{
     const dialog=$('#form-dialog'),input=$('#form-input'),select=$('#form-select');
     $('#form-title').textContent=title;$('#form-description').textContent=description;$('#form-description').hidden=!description;$('#form-label').textContent=label;$('#form-label').hidden=confirm;$('#form-label').htmlFor=choices?'form-select':'form-input';$('#form-submit').textContent=submit;
-    input.hidden=!!choices||confirm;input.required=!choices&&!confirm&&!optional;input.maxLength=maxLength;input.value=value;select.hidden=!choices;select.replaceChildren();
+    input.hidden=!!choices||confirm;input.required=!choices&&!confirm&&!optional;input.maxLength=maxLength;input.type=type;input.value=value;select.hidden=!choices;select.replaceChildren();
     if(choices)for(const c of choices){const option=el('option','',c.label);option.value=c.value;select.append(option);}
     let complete=false;
     const finish=v=>{if(complete)return;complete=true;dialog.close();$('#form').onsubmit=null;dialog.oncancel=null;resolve(v);};
@@ -34,10 +34,11 @@ function formDialog({title,description='',label='',value='',choices=null,submit=
 async function newAccount(){const name=await formDialog({title:'Add an account',label:'Account name',description:'Use your Riot ID or any label that makes sense to you.',submit:'Add account'});if(name){activeAccountId=crypto.randomUUID();activeView='account';changeAccounts(accounts=>accounts.push({id:activeAccountId,name,champions:[]}),`Added ${name}.`);}}
 async function accountAction(account){
   const index=state.accounts.indexOf(account);
-  const choices=[{value:'rename',label:'Rename account'},{value:'focus',label:'Edit account focus'},...(index>0?[{value:'earlier',label:'Move account earlier'}]:[]),...(index<state.accounts.length-1?[{value:'later',label:'Move account later'}]:[]),{value:'delete',label:'Delete account'}];
+  const choices=[{value:'rename',label:'Rename account'},{value:'focus',label:'Edit account focus'},{value:'opgg',label:account.opggUrl?'Edit OP.GG profile':'Add OP.GG profile'},...(index>0?[{value:'earlier',label:'Move account earlier'}]:[]),...(index<state.accounts.length-1?[{value:'later',label:'Move account later'}]:[]),{value:'delete',label:'Delete account'}];
   const action=await formDialog({title:account.name,label:'Account action',choices,submit:'Continue'});
   if(action==='rename'){const name=await formDialog({title:'Rename account',label:'Account name',value:account.name});if(name)changeAccounts(accounts=>accounts.find(a=>a.id===account.id).name=name,'Account renamed.');}
   if(action==='focus'){const focus=await formDialog({title:'Account focus',label:'What you focus on here',value:account.focus||'',optional:true,maxLength:1000});if(focus!==null)changeAccounts(accounts=>accounts.find(a=>a.id===account.id).focus=focus,'Account focus saved.');}
+  if(action==='opgg'){const url=await formDialog({title:'OP.GG profile',description:'Paste the complete OP.GG summoner link. Leave it blank to remove the profile.',label:'OP.GG URL',value:account.opggUrl||'',optional:true,maxLength:500,type:'url'});if(url!==null){if(url&&!validOpggUrl(url))return notify('Use a complete https://op.gg/lol/summoners/... profile link.');changeAccounts(accounts=>{const a=accounts.find(a=>a.id===account.id);if(url)a.opggUrl=url;else delete a.opggUrl;},url?'OP.GG profile saved.':'OP.GG profile removed.');}}
   if(action==='earlier'||action==='later'){const ids=shift(state.accounts.map(a=>a.id),account.id,action==='earlier'?-1:1);commit({...state,accounts:ids.map(id=>state.accounts.find(a=>a.id===id))},'Accounts reordered.');}
   if(action==='delete'&&await formDialog({title:`Delete ${account.name}?`,description:'This removes the account and its placements. All champion notebooks remain available.',submit:'Delete account',confirm:true}))commit({...state,accounts:state.accounts.filter(a=>a.id!==account.id)},'Account deleted. Champion notes kept.');
 }
@@ -93,6 +94,7 @@ function switchView(view,accountId=null){
 function openLibrary(role=null){
   quickTarget=activeAccountId;quickRole=role;activeView='library';renderBoard();renderTray();$('#search').focus();
 }
+function opggLabel(url){try{const parts=new URL(url).pathname.split('/').filter(Boolean),handle=decodeURIComponent(parts[3]),cut=handle.lastIndexOf('-');return cut>0?`${parts[2].toUpperCase()} · ${handle.slice(0,cut)}#${handle.slice(cut+1)}`:`${parts[2].toUpperCase()} · ${handle}`;}catch{return 'OP.GG profile';}}
 function renderBoard(){
   if(!state.accounts.some(a=>a.id===activeAccountId))activeAccountId=state.accounts[0]?.id||null;
   $('#account-count').textContent=state.accounts.length;
@@ -100,7 +102,7 @@ function renderBoard(){
   for(const a of state.accounts){const b=button('',()=>switchView('account',a.id),`Show account ${a.name}`);b.className='nav-item';b.dataset.accountId=a.id;b.append(el('span','nav-name',a.name),el('span','count',String(a.champions.length)));if(activeView==='account'&&activeAccountId===a.id)b.setAttribute('aria-current','page');nav.append(b);}
   for(const [id,view]of [['journal-nav','journal'],['library-nav','library']]){if(activeView===view)$('#'+id).setAttribute('aria-current','page');else $('#'+id).removeAttribute('aria-current');}
   $('#account-view').hidden=activeView!=='account';$('#journal-view').hidden=activeView!=='journal';$('#library-view').hidden=activeView!=='library';
-  const a=state.accounts.find(a=>a.id===activeAccountId);$('#accounts-title').textContent=a?.name||'Your accounts';$('#selected-focus').textContent=a?.focus||'';$('#selected-focus').hidden=!a?.focus;$('#manage-selected').hidden=!a;$('#open-library').hidden=!a;
+  const a=state.accounts.find(a=>a.id===activeAccountId),profile=$('#selected-opgg');$('#accounts-title').textContent=a?.name||'Your accounts';$('#selected-focus').textContent=a?.focus||'';$('#selected-focus').hidden=!a?.focus;$('#manage-selected').hidden=!a;$('#open-library').hidden=!a;profile.hidden=!a?.opggUrl;if(a?.opggUrl){$('#selected-opgg-id').textContent=opggLabel(a.opggUrl);$('#selected-opgg-link').href=a.opggUrl;$('#selected-opgg-link').setAttribute('aria-label',`Open ${a.name} on OP.GG`);}
   $('#library-hint').textContent=quickTarget&&a?`Adding to ${a.name}${quickRole?' · '+quickRole:''}. You can also drag onto an account in the sidebar.`:'Add a champion to an account or open its shared notes.';
   const board=$('#accounts');board.replaceChildren();
   if(!a){const empty=el('div','empty-board');empty.append(el('h3','','Make room for your pool.'),el('p','','Add an account, then choose champions for each role.'),button('+ Add your first account',newAccount));board.append(empty);return;}
@@ -177,5 +179,6 @@ document.querySelector('.workspace').addEventListener('drop',e=>{e.preventDefaul
 window.addEventListener('beforeunload',e=>{if(dirty&&!save()){e.preventDefault();e.returnValue='';}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&dirty)save();});
 window.addEventListener('storage',e=>{if(e.key!==STORAGE_KEY)return;undoAccounts=null;undoEntry=null;$('#undo').hidden=true;if(dirty){saveBlocked=true;banner('This board changed in another tab. Export your current notes before reloading; saving is paused to prevent overwriting the other tab.');$('#save-status').textContent='Saving paused';return;}try{if(!e.newValue)throw new Error();state=validateState(JSON.parse(e.newValue));if(selectedChampion){$('#notes-text').value=state.notes[selectedChampion]||'';$('#note-length').textContent=`${$('#notes-text').value.length.toLocaleString()} characters`;renderNotePlacement();}renderBoard();renderTray();renderJournal();notify('Board updated from another tab.');}catch{saveBlocked=true;banner('Saved data changed unexpectedly. Reload or restore a backup before making further changes.');}});
+try{const r=await fetch('/local-account-profiles.json');if(r.ok){const local=await r.json(),next=structuredClone(state);let changed=false;for(const profile of local.profiles||[]){if(!validOpggUrl(profile.url))continue;const account=next.accounts.find(a=>!a.opggUrl&&a.name.toLowerCase()===String(profile.accountName||'').toLowerCase())||next.accounts[profile.index];if(account&&!account.opggUrl){account.opggUrl=profile.url;changed=true;}}if(changed){state=validateState(next);save();}}}catch{/* Optional local-only account links are absent on a fresh checkout. */}
 try{const r=await fetch('/api/catalog');if(!r.ok)throw new Error();setCatalog(await r.json());if(!saveBlocked)save();else $('#save-status').textContent='Saving paused';}
 catch{banner('The champion roster could not load. Restart the local launcher and reload this page.');renderBoard();}
