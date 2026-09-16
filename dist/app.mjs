@@ -1,4 +1,4 @@
-import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, placeInRole, localDate, validDate } from './core.mjs';
+import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, placeInRole, localDate, validDate, lolalyticsUrl } from './core.mjs';
 const $ = s => document.querySelector(s);
 const el = (tag,className,text) => { const n=document.createElement(tag); if(className)n.className=className;if(text!==undefined)n.textContent=text;return n; };
 const button = (text,action,label) => {const b=el('button','',text);b.type='button';if(label)b.setAttribute('aria-label',label);b.addEventListener('click',action);return b;};
@@ -64,10 +64,11 @@ async function placementAction(championId,account){
 }
 function card(c,account=null){
   const item=el('div',`champ-card${state.notes[c.id]?' has-notes':''}`);item.draggable=true;item.dataset.champion=c.id;if(account)item.dataset.account=account.id;
-  const open=button('',()=>openNotes(c.id),`Open ${c.name} notes`);open.className='champ-open';
+  const portrait=el('a','champ-portrait-link');portrait.href=lolalyticsUrl(c.id);portrait.target='_blank';portrait.rel='noopener noreferrer';portrait.title=`Open ${c.name} on LoLalytics`;portrait.setAttribute('aria-label',portrait.title);portrait.draggable=false;
   const img=el('img');img.src=c.image||'/assets/champions/JarvanIV.png';img.alt='';img.width=100;img.height=100;img.loading='lazy';img.draggable=false;
   if(!c.image)img.hidden=true;
-  open.append(img,el('span','champ-name',c.name));item.append(open);
+  portrait.append(img);
+  const open=button(c.name,()=>openNotes(c.id),`Open ${c.name} notes`);open.className='champ-name champ-notes-open';item.append(portrait,open);
   const detail=account?.championDetails?.[c.id];
   if(detail?.role)item.append(el('span','role-badge',detail.role));
   if(detail?.note)item.append(el('p','placement-reminder',detail.note));
@@ -144,7 +145,7 @@ function renderNotePlacement(){
   if(!available.length){const o=el('option','',state.accounts.length?'Already on every account':'Create an account first');$('#note-account').append(o);}
 }
 function openNotes(id){
-  if(noteTimer)save();selectedChampion=id;const c=champions.get(id)||{name:id,title:'',image:''};$('#notes-title').textContent=c.name;$('#notes-subtitle').textContent=c.title;$('#notes-portrait').src=c.image||'/assets/champions/JarvanIV.png';$('#notes-portrait').hidden=!c.image;$('#notes-text').value=state.notes[id]||'';$('#notes-status').textContent=saveBlocked?'Saving paused':dirty?'Not saved':'Saved';$('#note-length').textContent=`${$('#notes-text').value.length.toLocaleString()} characters`;renderNotePlacement();$('#notes-dialog').showModal();$('#notes-text').focus();$('#notes-text').setSelectionRange(0,0);$('#notes-text').scrollTop=0;
+  if(noteTimer)save();selectedChampion=id;const c=champions.get(id)||{name:id,title:'',image:''},profile=$('#notes-lolalytics');profile.href=lolalyticsUrl(id);profile.title=`Open ${c.name} on LoLalytics`;profile.setAttribute('aria-label',profile.title);$('#notes-title').textContent=c.name;$('#notes-subtitle').textContent=c.title;$('#notes-portrait').src=c.image||'/assets/champions/JarvanIV.png';$('#notes-portrait').hidden=!c.image;$('#notes-text').value=state.notes[id]||'';$('#notes-status').textContent=saveBlocked?'Saving paused':dirty?'Not saved':'Saved';$('#note-length').textContent=`${$('#notes-text').value.length.toLocaleString()} characters`;renderNotePlacement();$('#notes-dialog').showModal();$('#notes-text').focus();$('#notes-text').setSelectionRange(0,0);$('#notes-text').scrollTop=0;
 }
 $('#notes-text').addEventListener('input',()=>{state.notes[selectedChampion]=$('#notes-text').value;dirty=true;$('#save-status').textContent='Saving…';$('#notes-status').textContent='Saving…';$('#note-length').textContent=`${$('#notes-text').value.length.toLocaleString()} characters`;clearTimeout(noteTimer);noteTimer=setTimeout(save,400);});
 $('#close-notes').onclick=()=>$('#notes-dialog').close();$('#notes-dialog').addEventListener('close',()=>{save();renderBoard();renderTray();selectedChampion=null;});

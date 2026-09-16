@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, validateState, placeChampion, shift, persistState, STORAGE_KEY, groupChampions, placeInRole, validDate, localDate } from '../dist/core.mjs';
+import { initialState, validateState, placeChampion, shift, persistState, STORAGE_KEY, groupChampions, placeInRole, validDate, localDate, lolalyticsUrl } from '../dist/core.mjs';
 const fixture=()=>({...initialState(),accounts:[{id:'a',name:'Jungle',champions:['JarvanIV','Gragas']},{id:'b',name:'Practice',champions:[]}]});
+test('LoLalytics links use champion slugs and the Wukong exception',()=>{
+ assert.equal(lolalyticsUrl('JarvanIV'),'https://lolalytics.com/lol/jarvaniv/build/');
+ assert.equal(lolalyticsUrl('Nunu'),'https://lolalytics.com/lol/nunu/build/');
+ assert.equal(lolalyticsUrl('MonkeyKing'),'https://lolalytics.com/lol/wukong/build/');
+ assert.equal(lolalyticsUrl('Future-Champion'),'https://lolalytics.com/lol/futurechampion/build/');
+ assert.throws(()=>lolalyticsUrl('***'),/Invalid champion ID/);
+});
 test('copy gives two placements with one shared notebook; move changes only membership',()=>{
  const before=fixture();before.notes.JarvanIV='Edited shared notes';
  const copy=placeChampion(before,'JarvanIV','b','a',true);
