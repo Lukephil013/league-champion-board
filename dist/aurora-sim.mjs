@@ -3,7 +3,7 @@ export const SPELLS = Object.freeze({
   Q: { delay: 0.25, speed: 1600, range: 900, radius: 30 },
   E: { delay: 0.35, range: 900, radius: 45, recoil: 250 }
 });
-export const WORLD = { width: 2000, height: 1300, player: { x: 1000, y: 1080 }, playerSpeed: 350, targetRadius: 55, laneHalfWidth: 340 };
+export const WORLD = { width: 2000, height: 1300, player: { x: 1000, y: 1080 }, playerSpeed: 350, targetRadius: 55, laneHalfWidth: 340, meleeRange: 150, meleeWindup: 0.85 };
 const EPS=1e-9;
 export function segmentDistance(point,a,b){
   const dx=b.x-a.x,dy=b.y-a.y,den=dx*dx+dy*dy;
@@ -14,16 +14,20 @@ export function sweptHit(a,b,targetA,targetB,radius){
   return segmentDistance({x:0,y:0},{x:a.x-targetA.x,y:a.y-targetA.y},{x:b.x-targetB.x,y:b.y-targetB.y})<=radius;
 }
 export function createDrill({distance=650,speed=350,pattern='strafe'}={}){
-  return {distance,speed,pattern,time:0,player:{...WORLD.player},destination:null,recoil:null,
-    target:{x:1000,y:1080-distance,direction:1,nextJuke:1},shots:[],last:null,lastBySpell:{},
-    results:{Q:{shots:0,hits:0},E:{shots:0,hits:0}}};
+  return {distance,speed,pattern,time:0,player:{...WORLD.player},destination:null,recoil:null,attackOrder:false,attackCooldown:0,attackFlash:0,
+    target:{x:1000,y:1080-distance,direction:1,nextJuke:1,hp:3},shots:[],last:null,lastBySpell:{},
+    results:{Q:{shots:0,hits:0},E:{shots:0,hits:0},melee:0}};
 }
 export function boundedPoint(point){return {x:Math.max(85,Math.min(WORLD.width-85,point.x)),y:Math.max(85,Math.min(WORLD.height-85,point.y))};}
 export function moveTo(drill,point){
   if(!Number.isFinite(point.x)||!Number.isFinite(point.y))return;
-  drill.destination=boundedPoint(point);
+  drill.attackOrder=false;
+  const bounded=boundedPoint(point);
+  bounded.x=Math.max(WORLD.player.x-WORLD.laneHalfWidth,Math.min(WORLD.player.x+WORLD.laneHalfWidth,bounded.x));
+  drill.destination=bounded;
 }
-export function stopMoving(drill){drill.destination=null;}
+export function stopMoving(drill){drill.destination=null;drill.attackOrder=false;}
+export function attackTarget(drill){drill.destination=null;drill.attackOrder=true;}
 export function canFire(drill,spell){return Boolean(SPELLS[spell])&&!drill.shots.some(s=>s.spell===spell)&&!(spell==='E'&&drill.recoil);}
 export function fire(drill,spell,aim){
   if(!canFire(drill,spell))return false;
@@ -48,9 +52,11 @@ function movePlayer(drill,dt){
     drill.player=boundedPoint({x:drill.player.x+recoil.direction.x*travel,y:drill.player.y+recoil.direction.y*travel});
     recoil.remaining-=travel;if(recoil.remaining<=EPS)drill.recoil=null;return;
   }
-  if(!drill.destination)return;
-  const dx=drill.destination.x-drill.player.x,dy=drill.destination.y-drill.player.y,length=Math.hypot(dx,dy),travel=WORLD.playerSpeed*dt;
-  if(length<=travel){drill.player={...drill.destination};drill.destination=null;}
+  const target=drill.attackOrder?drill.target:drill.destination;
+  if(!target)return;
+  const dx=target.x-drill.player.x,dy=target.y-drill.player.y,length=Math.hypot(dx,dy),travel=WORLD.playerSpeed*dt;
+  if(drill.attackOrder&&length<=WORLD.meleeRange+WORLD.targetRadius)return;
+  if(length<=travel){drill.player={x:target.x,y:target.y};drill.destination=null;}
   else{drill.player.x+=dx/length*travel;drill.player.y+=dy/length*travel;}
 }
 function complete(drill,shot){
@@ -70,6 +76,12 @@ export function step(drill,dt,random=Math.random){
     }
     const targetBefore={x:drill.target.x,y:drill.target.y};
     movePlayer(drill,delta);moveTarget(drill,delta,random);drill.time+=delta;remaining-=delta;
+    drill.attackFlash=Math.max(0,drill.attackFlash-delta);
+    if(drill.attackOrder){
+      const inRange=Math.hypot(drill.target.x-drill.player.x,drill.target.y-drill.player.y)<=WORLD.meleeRange+WORLD.targetRadius+1;
+      if(inRange){drill.attackCooldown-=delta;if(drill.attackCooldown<=0){drill.attackCooldown=WORLD.meleeWindup;drill.attackFlash=0.18;drill.results.melee++;drill.target.hp--;if(drill.target.hp<=0){drill.target.hp=3;drill.target.direction=-drill.target.direction;}}}
+      else drill.attackCooldown=0;
+    }
     for(const shot of drill.shots){
       const spec=SPELLS[shot.spell],before={...shot.position};shot.elapsed+=delta;
       if(shot.phase==='cast'){
