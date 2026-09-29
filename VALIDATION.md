@@ -75,3 +75,7 @@ All 36 tests pass. New coverage verifies independent Q/E windups, casting E whil
 ### Initial Q cast only
 
 Removed the returning Q projectile and return-hit counter at the user's request. All 36 tests pass, including Q ending at 900 units after 0.8125 seconds, becoming available again immediately, and never creating a return projectile or second score when Aurora moves. Q/E overlap and movement coverage still pass. The browser module passes its syntax check.
+
+### Aurora CS punish drill (September 29, 2026)
+
+The earlier player-to-minion melee order was replaced with an enemy champion that waits for an allied minion to reach last-hit health, walks into melee range, winds up, last-hits, and retreats. Q/E hits during the approach or windup count as CS punishes. All 36 automated checks pass, including the CS cycle, hit timing, outbound-only Q, overlapping Q/E, and the rest of the board. The local browser visibly showed the enemy approaching a selected low-health minion, and the full arena fit in the checked desktop viewport. Minion health loss and enemy behavior remain practice approximations.

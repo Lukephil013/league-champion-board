@@ -11,18 +11,22 @@ test('Q waits 250 ms, travels at 1600, and ends at maximum range',()=>{
   assert.equal(drill.shots.length,0);assert.deepEqual(drill.results.Q,{shots:1,hits:1});
   assert.equal(canFire(drill,'Q'),true);close(drill.last.finishedAt,0.8125);
 });
-test('leading a steady moving target hits; aiming at its cast-time location misses',()=>{
-  const direct=createDrill(),led=createDrill();
-  fire(direct,'Q',{x:direct.target.x,y:direct.target.y});
-  const aim=predictedAim(led,'Q');assert.ok(aim.x>led.target.x);fire(led,'Q',aim);
-  step(direct,1.3);step(led,1.3);assert.equal(direct.last.hit,false);assert.equal(led.last.hit,true);
+test('enemy waits for low minion health, walks into CS range, last-hits, and retreats',()=>{
+  const drill=createDrill();const startingY=drill.target.y;
+  step(drill,1);assert.equal(drill.target.phase,'waiting');assert.equal(drill.results.enemyCs,0);
+  step(drill,1);assert.equal(drill.target.phase,'approaching');assert.ok(drill.target.y>startingY);
+  step(drill,1);assert.equal(drill.target.phase,'windup');
+  step(drill,0.2);assert.equal(drill.results.enemyCs,1);assert.equal(drill.minions[0].alive,false);
+  assert.equal(drill.target.phase,'retreating');
+  const lastHitY=drill.target.y;step(drill,0.25);assert.ok(drill.target.y<lastHitY);
 });
-test('E checks the moving target exactly at 350 ms, not when cast',()=>{
-  const drill=createDrill({speed:500}),ahead=createDrill({speed:500});
-  fire(drill,'E',{x:1000,y:430});fire(ahead,'E',predictedAim(ahead,'E'));
-  step(drill,0.349);assert.equal(drill.results.E.shots,0);
-  step(drill,0.001);step(ahead,0.35);
-  assert.equal(drill.last.hit,false);assert.equal(ahead.last.hit,true);assert.equal(drill.shots.length,0);
+test('E hit counts as a CS punish only during the enemy approach or windup',()=>{
+  const idle=createDrill(),contest=createDrill();
+  fire(idle,'E',idle.target);step(idle,0.35);
+  assert.equal(idle.results.E.hits,1);assert.equal(idle.results.punishes,0);
+  step(contest,2);assert.equal(contest.target.phase,'approaching');
+  fire(contest,'E',predictedAim(contest,'E'));step(contest,0.35);
+  assert.equal(contest.results.E.hits,1);assert.equal(contest.results.punishes,1);
 });
 test('swept collision catches a target crossed entirely between two projectile positions',()=>{
   assert.equal(sweptHit({x:0,y:0},{x:200,y:0},{x:100,y:0},{x:100,y:0},20),true);
@@ -74,10 +78,11 @@ test('E resolves from its cast origin before recoil and hop ends inside the aren
   close(drill.player.y,800);assert.deepEqual(drill.last.origin,{x:1000,y:800});assert.equal(canFire(drill,'E'),false);
   step(drill,250/850);close(drill.player.y,1050);assert.equal(drill.recoil,null);assert.equal(canFire(drill,'E'),true);
 });
-test('target movement and shot results are independent of render frame length',()=>{
+test('enemy CS and shot results are independent of render frame length',()=>{
   const small=createDrill(),large=createDrill();const aim=predictedAim(small,'Q');fire(small,'Q',aim);fire(large,'Q',aim);
-  for(let i=0;i<156;i++)step(small,1/120);
-  for(let i=0;i<26;i++)step(large,0.05);
-  close(small.target.x,large.target.x);assert.deepEqual(small.results,large.results);
+  for(let i=0;i<420;i++)step(small,1/120);
+  for(let i=0;i<70;i++)step(large,0.05);
+  close(small.target.x,large.target.x);close(small.target.y,large.target.y);
+  assert.deepEqual(small.results,large.results);assert.equal(small.results.enemyCs,1);
   close(SPELLS.Q.delay+900/SPELLS.Q.speed,0.8125);
 });
