@@ -1,5 +1,6 @@
 export const STORAGE_KEY = 'league-champion-board:v1';
 export const ROLES = ['ADC','Jungle','Mid','Top','Support'];
+export const RANKED_QUEUE_ID = 420;
 export function validOpggUrl(value) {
   try {const u=new URL(value);const parts=u.pathname.split('/').filter(Boolean);return u.protocol==='https:'&&u.hostname==='op.gg'&&parts.length===4&&parts[0]==='lol'&&parts[1]==='summoners'&&/^[a-z0-9]+$/i.test(parts[2])&&parts[3].length>2;} catch{return false;}
 }
@@ -25,7 +26,36 @@ export const SEEDS = {
   RekSai: 'FROM THE DISCUSSION\nSuggested for early weak-point pressure through tunnels, information, and unusual gank angles. The discussion described a less comfortable fallback than J4. An option to explore.',
   Volibear: 'FROM THE DISCUSSION\nSuggested as an early-aggression option with different build directions. Discussed briefly; no personal testing verdict recorded.'
 };
-export function initialState() { return { schemaVersion: 2, accounts: [], notes: { ...SEEDS }, journal: [] }; }
+export function emptyRankedHistory() { return { schemaVersion: 1, queueId: RANKED_QUEUE_ID, accounts: {} }; }
+export function validateRankedHistory(value) {
+  const fail=()=>{throw new Error('Invalid Ranked Solo history.');},record=x=>x!==null&&typeof x==='object'&&!Array.isArray(x),id=x=>typeof x==='string'&&/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(x)&&!['__proto__','constructor','prototype'].includes(x);
+  if(!record(value)||value.schemaVersion!==1||value.queueId!==RANKED_QUEUE_ID||!record(value.accounts))fail();
+  const clean=emptyRankedHistory();
+  for(const [accountId,account] of Object.entries(value.accounts)){
+    if(!id(accountId)||!record(account)||typeof account.riotId!=='string'||account.riotId.length>200||typeof account.region!=='string'||account.region.length>20||typeof account.puuid!=='string'||account.puuid.length>200||!record(account.matches)||Object.keys(account.matches).length>50000)fail();
+    const matches={};
+    for(const [matchId,match] of Object.entries(account.matches)){if(!id(matchId)||!record(match)||!id(match.championId)||typeof match.win!=='boolean'||!Number.isSafeInteger(match.gameCreation)||match.gameCreation<0)fail();matches[matchId]={championId:match.championId,win:match.win,gameCreation:match.gameCreation};}
+    clean.accounts[accountId]={riotId:account.riotId,region:account.region,puuid:account.puuid,updatedAt:typeof account.updatedAt==='string'&&account.updatedAt.length<100?account.updatedAt:'',matches};
+  }
+  return clean;
+}
+export function championRankedStats(state,championId,accountId=null){
+  let games=0,wins=0,coverageFrom=null,coverageTo=null;
+  const accounts=state.rankedHistory?.accounts||{};
+  for(const [id,account] of Object.entries(accounts)){if(accountId&&id!==accountId)continue;for(const match of Object.values(account.matches||{})){if(match.championId!==championId)continue;games++;if(match.win)wins++;if(!coverageFrom||match.gameCreation<coverageFrom)coverageFrom=match.gameCreation;if(!coverageTo||match.gameCreation>coverageTo)coverageTo=match.gameCreation;}}
+  return {games,wins,losses:games-wins,coverageFrom,coverageTo};
+}
+export function accountRankedSummary(state,accountId){
+  const account=state.rankedHistory?.accounts?.[accountId],champions={};let games=0,coverageFrom=null,coverageTo=null;
+  for(const match of Object.values(account?.matches||{})){games++;const stats=champions[match.championId]||={games:0,wins:0,losses:0};stats.games++;if(match.win)stats.wins++;else stats.losses++;if(!coverageFrom||match.gameCreation<coverageFrom)coverageFrom=match.gameCreation;if(!coverageTo||match.gameCreation>coverageTo)coverageTo=match.gameCreation;}
+  return {games,champions,coverageFrom,coverageTo,updatedAt:account?.updatedAt||''};
+}
+export function mergeRankedHistories(...histories){
+  const merged=emptyRankedHistory();
+  for(const value of histories){if(!value)continue;let clean;try{clean=validateRankedHistory(value);}catch{continue;}for(const [accountId,incoming] of Object.entries(clean.accounts)){const current=merged.accounts[accountId];if(!current||current.puuid!==incoming.puuid){if(!current||Date.parse(incoming.updatedAt||0)>=Date.parse(current.updatedAt||0))merged.accounts[accountId]=structuredClone(incoming);continue;}current.matches={...current.matches,...incoming.matches};if(Date.parse(incoming.updatedAt||0)>=Date.parse(current.updatedAt||0))Object.assign(current,{riotId:incoming.riotId,region:incoming.region,updatedAt:incoming.updatedAt});}}
+  return merged;
+}
+export function initialState() { return { schemaVersion: 3, accounts: [], notes: { ...SEEDS }, journal: [], rankedHistory: emptyRankedHistory() }; }
 export function localDate(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
 export function validDate(value) { return typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value+'T12:00:00Z')) && new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value; }
 export function groupChampions(account) { return [...ROLES,'Unassigned'].map(role=>({role,champions:account.champions.filter(id=>(account.championDetails?.[id]?.role||'Unassigned')===role)})); }
@@ -34,10 +64,10 @@ export function persistState(storage, state) {
   catch { return { saved:false, message:'Browser storage is unavailable or full. Your current changes are still on screen. Export a backup before closing this page.' }; }
 }
 export function validateState(raw) {
-  const fail = () => { throw new Error('This file is not a valid Champion Board backup (versions 1 and 2 are supported).'); };
+  const fail = () => { throw new Error('This file is not a valid Champion Board backup (versions 1 through 3 are supported).'); };
   const record = x => x !== null && typeof x === 'object' && !Array.isArray(x);
   const id = x => typeof x === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(x) && !['__proto__','constructor','prototype'].includes(x);
-  if (!record(raw) || ![1,2].includes(raw.schemaVersion) || !Array.isArray(raw.accounts) || raw.accounts.length > 200 || !record(raw.notes)) fail();
+  if (!record(raw) || ![1,2,3].includes(raw.schemaVersion) || !Array.isArray(raw.accounts) || raw.accounts.length > 200 || !record(raw.notes)) fail();
   const seen = new Set();
   const accounts = raw.accounts.map(a => {
     if (!record(a) || !id(a.id) || seen.has(a.id) || typeof a.name !== 'string' || !a.name.trim() || a.name.length > 80 || !Array.isArray(a.champions) || a.champions.length > 1000 || a.champions.some(c => !id(c)) || new Set(a.champions).size !== a.champions.length) fail();
@@ -63,7 +93,9 @@ export function validateState(raw) {
     if(!record(entry)||!id(entry.id)||entries.has(entry.id)||!validDate(entry.date)||typeof entry.title!=='string'||entry.title.length>160||typeof entry.body!=='string'||entry.body.length>100000)fail();
     entries.add(entry.id);return {id:entry.id,date:entry.date,title:entry.title,body:entry.body};
   });
-  return { schemaVersion: 2, accounts, notes, journal:cleanJournal };
+  let rankedHistory;
+  try{rankedHistory=raw.rankedHistory===undefined&&raw.schemaVersion<3?emptyRankedHistory():validateRankedHistory(raw.rankedHistory);}catch{fail();}
+  return { schemaVersion: 3, accounts, notes, journal:cleanJournal, rankedHistory };
 }
 export function placeInRole(state, championId, targetId, role, sourceId=null, beforeId=null) {
   if(![...ROLES,'Unassigned'].includes(role))throw new Error('Choose a valid role.');

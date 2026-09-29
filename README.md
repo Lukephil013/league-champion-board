@@ -4,7 +4,7 @@ A personal, local website for organizing champion pools across League accounts. 
 
 ## Open the app
 
-Requires **Node.js 22 or newer**. No npm dependencies, API key, account login, or build step.
+Requires **Node.js 22 or newer**. There are no npm dependencies, account logins, or build step. A Riot developer API key is optional and is needed only for Ranked Solo/Duo game counts.
 
 On Windows, double-click **Start Champion Board.cmd**. It starts the server in the background and opens your default browser. Reopening the launcher reuses the running server.
 
@@ -30,9 +30,9 @@ The first launch starts with no account assignments and 14 concise notebooks fro
 
 ## Saving and backups
 
-Accounts, placements, OP.GG profile links, champion notes, and journal entries are stored only in this browser profile’s local storage, under `league-champion-board:v1`. The key remains the same so existing boards upgrade in place; the data format is now version 2. The local server never receives them. Clearing site data, using a different browser/profile, or moving to a different address will not carry them over automatically.
+Accounts, placements, OP.GG profile links, champion notes, journal entries, and Ranked Solo history are stored in this browser profile’s local storage under `league-champion-board:v1`. The key remains the same so existing boards upgrade in place; the data format is now version 3. Ranked history is also cached in the ignored local `.runtime/` directory so an interrupted browser session can recover the latest completed update. Clearing both site data and `.runtime/`, using a different browser/profile, or moving to a different address will not carry the data over automatically.
 
-Open the **Settings gear** at the bottom of the sidebar to use **Export backup** or **Import backup**. Export regularly, especially before clearing browser data. The preview lets you copy the JSON text or choose **Download JSON**. Keep the downloaded `league-board-YYYY-MM-DD.json` outside the repository, or inside the ignored `backups/` folder. **Import backup** validates the file and asks before replacing the board, including its journal. A failed import does not change existing data. Import also provides recovery if saved data could not be read. Existing version 1 backups remain compatible and start with an empty journal; new backups include dated entries, account focus, roles, and conditional reminders.
+Open the **Settings gear** at the bottom of the sidebar to use **Export backup** or **Import backup**. Export regularly, especially before clearing browser data. The preview lets you copy the JSON text or choose **Download JSON**. Keep the downloaded `league-board-YYYY-MM-DD.json` outside the repository, or inside the ignored `backups/` folder. **Import backup** validates the file and asks before replacing the board, including its journal and Ranked Solo history. A failed import does not change existing data. Existing version 1 and 2 backups remain compatible; new backups include dated entries, account focus, roles, conditional reminders, and tracked Ranked Solo matches. The Riot API key is never included in a backup.
 
 Refresh other open board tabs after upgrading. When space allows, the app retains one pre-upgrade snapshot in browser storage at `league-champion-board:before-v2`; regular JSON exports remain the portable backup.
 
@@ -44,6 +44,18 @@ Choose **General journal** in the sidebar, then **New entry**. Each entry has an
 
 The journal is shared across all accounts. Entries save automatically as you type, and pending edits flush when switching views or leaving the page. Deletion asks for confirmation and offers **Undo**. Account and champion placement changes never delete journal entries. Journal contents stay local and are included in JSON backups.
 
+## Ranked Solo/Duo game counts
+
+1. Add each account’s OP.GG profile through **Manage account**. The board uses the region and Riot ID from that URL.
+2. Get a development key from the [Riot Developer Portal](https://developer.riotgames.com/), open the sidebar **Settings gear**, paste the key, and choose **Save key**.
+3. Choose **Update counts**. The server resolves each linked Riot ID, requests Match-v5 history for queue **420** only, and processes newly discovered matches. Flex, normal games, ARAM, Arena, and custom games are excluded.
+
+Counts appear below champion names on account boards. The champion notebook shows the combined total and the per-account win/loss breakdown. The account header shows the fetched date coverage. Re-running the update keeps previously processed match IDs and fetches details only for new matches.
+
+The count covers the Ranked Solo/Duo matches Riot currently makes available through Match-v5 plus anything the board has already recorded. It is not presented as a guaranteed lifetime total. Keep the JSON backup if you want the accumulated history to survive browser or computer changes.
+
+The API key is stored only at `.runtime/riot-api-key.txt`, which is excluded from Git. It is sent directly from the local server to Riot in the `X-Riot-Token` header and is never returned to the browser, written to logs, or placed in backups. If Riot rejects an expired key, save a current key and run the update again. The local cache is `.runtime/ranked-solo-history.json`; it is also excluded from Git.
+
 ## Champion data
 
 The repository bundles all 173 champions and portraits from Riot Data Dragon **16.18.1**. The app works offline from those assets. **Refresh roster** explicitly downloads the latest available catalog and portraits from Riot’s public Data Dragon service; an incomplete update leaves the previous catalog active. Personal data is not sent to Riot.
@@ -54,14 +66,14 @@ To deliberately update the bundled public roster as a developer, run `npm run ca
 
 ## Development and verification
 
-`npm test` runs Node’s built-in tests for placement behavior, backup validation, storage failure handling, and local server boundaries. `node --check dist/app.mjs` checks browser module syntax. There is no compilation step; `dist/` is authored source, not a generated build.
+`npm test` runs Node’s built-in tests in one process for placement behavior, backup validation, Ranked Solo aggregation, Riot request filtering, storage failure handling, and local server boundaries. `node --check dist/app.mjs` checks browser module syntax. There is no compilation step; `dist/` is authored source, not a generated build.
 
 - `dist/`: interface, state logic, starter notes, bundled catalog and portraits.
-- `server.mjs` / `catalog.mjs`: localhost-only static server and explicit roster updates.
+- `server.mjs` / `catalog.mjs` / `ranked.mjs`: localhost-only static server, explicit roster updates, and Ranked Solo/Duo history updates.
 - `launch.ps1` / `launch.vbs`: Windows background server launcher.
 - `ChampionBoardLauncher.cs` / `Install Taskbar Shortcut.ps1`: source and installer for the taskbar launcher. The generated `.exe` stays local and is ignored by Git.
 
-Only the `dist/` assets and champion portrait cache are served. Requests to private project files are rejected. The server binds to `127.0.0.1`, validates the host, and requires same-origin refresh requests. No telemetry, cloud sync, Riot account connection, or website hosting is included.
+Only the `dist/` assets and champion portrait cache are served. Requests to private project files are rejected. The server binds to `127.0.0.1`, validates the host, and requires same-origin write requests. It does not log into a Riot account; Match-v5 requests use the linked public Riot IDs and the locally saved developer key. No telemetry, cloud sync, or website hosting is included.
 
 ## Credits
 
