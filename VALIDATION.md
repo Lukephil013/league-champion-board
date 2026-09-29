@@ -61,3 +61,9 @@ Account portraits render at 50 × 50 pixels. The top bar and sidebar caption wer
 - Restarted the fixed-port server and confirmed `/api/health` reports version 2. Opened the Settings dialog in the in-app browser and visually checked the API-key field, disabled pre-setup update control, queue 420 explanation, backup controls, and local-storage status. The browser console had no warnings or errors.
 
 A real Riot request was not made because no Riot API key was supplied. The mock uses the official Account-v1 and Match-v5 response shapes and exercises the complete local request, cache, aggregation, and browser-status path without storing a fake key in the project.
+
+## Aurora practice (September 29, 2026)
+
+All 30 tests pass, including six new simulation tests covering the exact Q cast delay, outbound/return speeds, E resolution time, successful leading versus aiming at the old position, continuous collision detection, maximum range, prevention of overlapping casts, and agreement across different render intervals. Browser modules pass syntax checks.
+
+The in-app browser verified the new sidebar view, keyboard Q/E casts against a stationary target with successful hit feedback, Q return scoring, difficulty changes, random-juke movement, lead-guide display, and pause controls. The arena and feedback were visually inspected at the normal desktop viewport. A 390 × 844 viewport had no horizontal overflow; the viewport override was reset afterward. Physical touchscreen hardware was not tested. This drill uses the timings supplied by the user and explicitly labels its simplified geometry and return rules.

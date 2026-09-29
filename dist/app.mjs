@@ -1,5 +1,7 @@
 import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, placeInRole, localDate, validDate, lolalyticsUrl, validOpggUrl, championRankedStats, accountRankedSummary, mergeRankedHistories } from './core.mjs';
+import { mountAuroraPractice } from './aurora-practice.mjs';
 const $ = s => document.querySelector(s);
+const auroraPractice = mountAuroraPractice($('#practice-view'));
 const el = (tag,className,text) => { const n=document.createElement(tag); if(className)n.className=className;if(text!==undefined)n.textContent=text;return n; };
 const button = (text,action,label) => {const b=el('button','',text);b.type='button';if(label)b.setAttribute('aria-label',label);b.addEventListener('click',action);return b;};
 let state, catalog, champions = new Map(), selectedChampion=null, noteTimer, undoAccounts=null, saveBlocked=false, dirty=false, quickTarget=null, quickRole=null, activeView='account', activeAccountId=null, activeEntryId=null, undoEntry=null, rankedPoll=null, rankedConfigured=false;
@@ -104,8 +106,9 @@ function renderBoard(){
   $('#account-count').textContent=state.accounts.length;
   const nav=$('#account-nav');nav.replaceChildren();
   for(const a of state.accounts){const b=button('',()=>switchView('account',a.id),`Show account ${a.name}`);b.className='nav-item';b.dataset.accountId=a.id;b.append(el('span','nav-name',a.name),el('span','count',String(a.champions.length)));if(activeView==='account'&&activeAccountId===a.id)b.setAttribute('aria-current','page');nav.append(b);}
-  for(const [id,view]of [['journal-nav','journal'],['library-nav','library']]){if(activeView===view)$('#'+id).setAttribute('aria-current','page');else $('#'+id).removeAttribute('aria-current');}
+  for(const [id,view]of [['journal-nav','journal'],['library-nav','library'],['practice-nav','practice']]){if(activeView===view)$('#'+id).setAttribute('aria-current','page');else $('#'+id).removeAttribute('aria-current');}
   $('#account-view').hidden=activeView!=='account';$('#journal-view').hidden=activeView!=='journal';$('#library-view').hidden=activeView!=='library';
+  $('#practice-view').hidden=activeView!=='practice';auroraPractice.setActive(activeView==='practice');
   const a=state.accounts.find(a=>a.id===activeAccountId),profile=$('#selected-opgg'),rankedPanel=$('#selected-ranked');$('#accounts-title').textContent=a?.name||'Your accounts';$('#selected-focus').textContent=a?.focus||'';$('#selected-focus').hidden=!a?.focus;$('#manage-selected').hidden=!a;$('#open-library').hidden=!a;profile.hidden=!a?.opggUrl;if(a?.opggUrl){$('#selected-opgg-id').textContent=opggLabel(a.opggUrl);$('#selected-opgg-link').href=a.opggUrl;$('#selected-opgg-link').setAttribute('aria-label',`Open ${a.name} on OP.GG`);}
   const accountStats=a?accountRankedSummary(state,a.id):null;rankedPanel.hidden=!accountStats?.games;if(accountStats?.games){rankedPanel.textContent=`Ranked Solo/Duo · ${rankedCoverage({...accountStats,wins:Object.values(accountStats.champions).reduce((sum,c)=>sum+c.wins,0),losses:Object.values(accountStats.champions).reduce((sum,c)=>sum+c.losses,0)})}`;}
   $('#library-hint').textContent=quickTarget&&a?`Adding to ${a.name}${quickRole?' · '+quickRole:''}. You can also drag onto an account in the sidebar.`:'Add a champion to an account or open its shared notes.';
@@ -140,6 +143,7 @@ function editEntry(){
   entry.title=$('#entry-title').value;entry.body=$('#entry-body').value;dirty=true;$('#save-status').textContent='Saving…';$('#journal-status').textContent='Saving…';$('#entry-length').textContent=`${entry.body.length.toLocaleString()} characters`;renderEntryList();clearTimeout(noteTimer);noteTimer=setTimeout(save,400);
 }
 $('#journal-nav').onclick=()=>switchView('journal');$('#library-nav').onclick=()=>{quickTarget=null;quickRole=null;switchView('library');renderTray();};
+$('#practice-nav').onclick=()=>switchView('practice');
 $('#open-library').onclick=()=>openLibrary();$('#manage-selected').onclick=()=>{const a=state.accounts.find(a=>a.id===activeAccountId);if(a)accountAction(a);};
 $('#new-entry').onclick=newEntry;$('#first-entry').onclick=newEntry;
 for(const id of ['entry-title','entry-body','entry-date'])$('#'+id).addEventListener('input',editEntry);

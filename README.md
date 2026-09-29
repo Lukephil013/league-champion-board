@@ -44,6 +44,14 @@ Choose **General journal** in the sidebar, then **New entry**. Each entry has an
 
 The journal is shared across all accounts. Entries save automatically as you type, and pending edits flush when switching views or leaving the page. Deletion asks for confirmation and offers **Undo**. Account and champion placement changes never delete journal entries. Journal contents stay local and are included in JSON backups.
 
+## Aurora practice
+
+Choose **Aurora practice** in the sidebar. Pick Q or E, a lane distance, target speed, and steady strafing or random jukes, then press **Start**. Click/tap the arena to aim and cast. With the arena focused, use **Q**, **E**, or **Space** to cast and arrow keys to adjust aim. The **Cast** button uses the current aim. **Show lead guide** displays the intercept if the target holds its current direction; it does not predict future turns. Changing difficulty resets and pauses the drill.
+
+This first version uses the supplied timings: Q waits 0.25 seconds, travels at 1600 units/second up to 900 units, and automatically returns at 2000 units/second. E checks its line at 0.35 seconds. The screen reports Q outbound hits, return hits, and E hits separately. The arena scales pixels while keeping its unit distances and timings constant. It pauses when leaving the trainer or browser. Results are temporary and do not change board data or backups.
+
+The expandable timing notes explain the prototype's approximations: fixed Aurora position, automatic Q return without marks/recast rules, and simplified target/projectile hitboxes. E uses a practice range of 900 units. There is no R, recoil, cooldown, or network-latency simulation. Timings are the user's supplied drill parameters, not a claim that the current patch was independently checked.
+
 ## Ranked Solo/Duo game counts
 
 1. Add each account’s OP.GG profile through **Manage account**. The board uses the region and Riot ID from that URL.
