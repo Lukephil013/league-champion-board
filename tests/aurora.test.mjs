@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import {WORLD,SPELLS,createDrill,fire,step,shotPosition,predictedAim,sweptHit,moveTo,stopMoving,canFire} from '../dist/aurora-sim.mjs';
 const close=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-6,`${actual} != ${expected}`);
 
-test('Q waits 250 ms, travels at 1600, then returns at 2000 units per second',()=>{
+test('Q waits 250 ms, travels at 1600, and ends at maximum range',()=>{
   const drill=createDrill({speed:0});fire(drill,'Q',{x:1000,y:0});
   step(drill,0.25);close(shotPosition(drill.shots[0]).y,WORLD.player.y);assert.equal(drill.shots[0].hit,false);
   step(drill,450/1600);close(shotPosition(drill.shots[0]).y,WORLD.player.y-450);
-  step(drill,450/1600);close(shotPosition(drill.shots[0]).y,WORLD.player.y-900);
-  step(drill,0.1);close(shotPosition(drill.shots[0]).y,WORLD.player.y-700);
-  step(drill,0.35);assert.equal(drill.shots.length,0);assert.deepEqual(drill.results.Q,{shots:1,hits:1,returns:1});
+  step(drill,450/1600);close(drill.last.position.y,WORLD.player.y-900);
+  assert.equal(drill.shots.length,0);assert.deepEqual(drill.results.Q,{shots:1,hits:1});
+  assert.equal(canFire(drill,'Q'),true);close(drill.last.finishedAt,0.8125);
 });
 test('leading a steady moving target hits; aiming at its cast-time location misses',()=>{
   const direct=createDrill(),led=createDrill();
@@ -31,7 +31,7 @@ test('swept collision catches a target crossed entirely between two projectile p
 test('Q has finite range and an active shot cannot be overwritten',()=>{
   const drill=createDrill({speed:0,distance:1200});assert.equal(fire(drill,'Q',drill.target),true);
   assert.equal(fire(drill,'Q',drill.target),false);step(drill,2);
-  assert.equal(drill.last.hit,false);assert.equal(drill.last.returnHit,false);assert.equal(drill.results.Q.shots,1);
+  assert.equal(drill.last.hit,false);assert.equal(drill.results.Q.shots,1);
   assert.equal(fire(drill,'Q',WORLD.player),false);assert.equal(fire(drill,'X',drill.target),false);
 });
 test('Q and E can start together and resolve on independent timelines',()=>{
@@ -42,7 +42,7 @@ test('Q and E can start together and resolve on independent timelines',()=>{
   assert.equal(drill.shots.find(s=>s.spell==='E').phase,'cast');
   step(drill,0.1);assert.equal(drill.results.E.shots,1);assert.equal(drill.results.E.hits,1);assert.equal(drill.results.Q.shots,0);
   assert.equal(drill.shots.length,1);assert.equal(drill.shots[0].spell,'Q');
-  step(drill,2);assert.equal(drill.results.Q.hits,1);assert.equal(drill.results.Q.returns,1);
+  step(drill,2);assert.equal(drill.results.Q.hits,1);assert.equal(drill.results.Q.shots,1);
 });
 test('E can be cast while Q is in flight without replacing the Q projectile',()=>{
   const drill=createDrill({speed:0});fire(drill,'Q',drill.target);step(drill,0.4);
@@ -61,10 +61,13 @@ test('windup pauses walking, retains move orders and anchors the outgoing shot',
   step(drill,0.25);close(drill.player.x,1000);const q=drill.shots[0];assert.deepEqual(q.origin,WORLD.player);
   step(drill,0.2);close(drill.player.x,1070);close(q.position.x,1000);close(q.position.y,760);
 });
-test('Q homes to Aurora after she moves, rather than ending at the old origin',()=>{
-  const drill=createDrill({speed:0});fire(drill,'Q',drill.target);step(drill,0.8125);
-  moveTo(drill,{x:1400,y:1080});step(drill,0.1);const returning=drill.shots[0];assert.ok(returning.position.x>1000);
-  step(drill,1.5);assert.equal(drill.shots.length,0);assert.ok(drill.last.position.x>1000);assert.equal(drill.results.Q.shots,1);
+test('moving Aurora does not create a returning projectile or a second score',()=>{
+  const drill=createDrill({speed:0});fire(drill,'Q',drill.target);
+  moveTo(drill,{x:1400,y:1080});step(drill,0.8125);
+  assert.equal(drill.shots.length,0);assert.ok(drill.player.x>1000);
+  const result=structuredClone(drill.last);step(drill,2);
+  assert.deepEqual(drill.last,result);assert.equal(drill.shots.length,0);
+  assert.deepEqual(drill.results.Q,{shots:1,hits:1});
 });
 test('E resolves from its cast origin before recoil and hop ends inside the arena',()=>{
   const drill=createDrill({speed:0});drill.player={x:1000,y:800};fire(drill,'E',{x:1000,y:0});step(drill,0.35);

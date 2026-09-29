@@ -71,3 +71,7 @@ The in-app browser verified the new sidebar view, keyboard Q/E casts against a s
 ### Controllable Aurora and overlapping casts
 
 All 36 tests pass. New coverage verifies independent Q/E windups, casting E while Q is already flying, 350-unit/second click movement and arena boundaries, stopping, movement paused only during windup, shots anchored at their cast location, Q homing toward a moving Aurora, and E resolving before its backward hop. The in-app browser showed “Q + E casting” followed by both hits. Right-clicking moved the drawn character to the selected position; clicking a new aim point, stopping, and casting Q/E again worked from that new location. No API key or account connection is needed for practice. Independent overlapping windups and the hop distance remain explicitly labeled training approximations.
+
+### Initial Q cast only
+
+Removed the returning Q projectile and return-hit counter at the user's request. All 36 tests pass, including Q ending at 900 units after 0.8125 seconds, becoming available again immediately, and never creating a return projectile or second score when Aurora moves. Q/E overlap and movement coverage still pass. The browser module passes its syntax check.

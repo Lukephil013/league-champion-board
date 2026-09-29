@@ -12,8 +12,8 @@ export function mountAuroraPractice(root){
     <div class="practice-toolbar"><button id="practice-pause" class="primary">Start</button><button id="practice-q" aria-label="Cast Q" disabled>Q · Ready</button><button id="practice-e" aria-label="Cast E" disabled>E · Ready</button><label class="practice-guide"><input id="practice-guide" type="checkbox"> Show lead guide</label><span id="practice-timing"></span></div>
     <p id="practice-instructions" class="hint">Right-click to move (left-click or tap also works). Aim with the cursor, then press Q and E to cast—even together. Arrow keys move; S stops; Space casts the selected spell. On touch: tap to aim/move, then use Q/E buttons.</p>
     <canvas id="practice-canvas" width="1000" height="650" tabindex="0" aria-label="Aurora skillshot practice arena" aria-describedby="practice-instructions">Use a browser with Canvas support for the moving-target drill.</canvas>
-    <div class="practice-feedback"><span id="practice-feedback" role="status">Ready · click to move, Q/E to cast.</span><span id="practice-score">Q: 0/0 hits · return: 0 · E: 0/0 hits</span></div>
-    <details class="practice-model"><summary>Timing model and drill limits</summary><p>Q winds up for 0.25 s, travels out at 1600 units/s, then returns at 2000 units/s toward Aurora’s current position. E resolves after 0.35 s. Q and E have independent cast timers: pressing both starts overlapping windups. Walking pauses during windups and resumes afterward. Move commands can be issued while casting.</p><p>Aurora walks at 350 units/s. E hops backward 250 units at 850 units/s; hop distance is a practice approximation. Q returns automatically at maximum range, without mark/recast rules. Each spell becomes ready again after its current effect ends; this is a rapid drill without live-game cooldowns or mana. Target radius (55), Q radius (30), E half-width (45), and E range (900) remain simplified geometry. Timings use your supplied values; this is not a frame-perfect game replica. No R or latency simulation. The lead guide assumes the target keeps its current direction. Results last only for this page session.</p></details>`;
+    <div class="practice-feedback"><span id="practice-feedback" role="status">Ready · click to move, Q/E to cast.</span><span id="practice-score">Q: 0/0 hits · E: 0/0 hits</span></div>
+    <details class="practice-model"><summary>Timing model and drill limits</summary><p>Q winds up for 0.25 s, travels out at 1600 units/s, and ends at 900 units. E resolves after 0.35 s. Q and E have independent cast timers: pressing both starts overlapping windups. Walking pauses during windups and resumes afterward. Move commands can be issued while casting.</p><p>Aurora walks at 350 units/s. E hops backward 250 units at 850 units/s; hop distance is a practice approximation. This drill practices only the initial Q cast. Each spell becomes ready again after its current effect ends; this is a rapid drill without live-game cooldowns or mana. Target radius (55), Q radius (30), E half-width (45), and E range (900) remain simplified geometry. Timings use your supplied values; this is not a frame-perfect game replica. No R or latency simulation. The lead guide assumes the target keeps its current direction. Results last only for this page session.</p></details>`;
   const $=s=>root.querySelector(s),canvas=$('#practice-canvas'),ctx=canvas.getContext('2d');
   let drill=createDrill(),aim={x:1000,y:430},active=false,running=false,frame=null,lastTime=0,lastResult=null;
   const held=new Set(),arrows={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
@@ -23,11 +23,11 @@ export function mountAuroraPractice(root){
   function controls(){
     $('#practice-pause').textContent=running?'Pause':drill.time?'Resume':'Start';
     for(const spell of ['Q','E']){const b=$('#practice-'+spell.toLowerCase()),shot=drill.shots.find(s=>s.spell===spell);b.disabled=!running||!canFire(drill,spell);
-      b.textContent=shot?`${spell} · ${shot.phase==='cast'?`${(SPELLS[spell].delay-shot.elapsed).toFixed(2)} s`:shot.phase==='return'?'Returning':'In flight'}`:spell==='E'&&drill.recoil?'E · Hopping':`${spell} · Ready`;
+      b.textContent=shot?`${spell} · ${shot.phase==='cast'?`${(SPELLS[spell].delay-shot.elapsed).toFixed(2)} s`:'In flight'}`:spell==='E'&&drill.recoil?'E · Hopping':`${spell} · Ready`;
     }
     const distance=Math.hypot(drill.target.x-drill.player.x,drill.target.y-drill.player.y);
     $('#practice-timing').textContent=selected()==='Q'?`${Math.round(distance)} units · ${(SPELLS.Q.delay+distance/SPELLS.Q.speed).toFixed(3)} s${distance>900?' · out of range':''}`:'E · 0.350 s windup';
-    const {Q,E}=drill.results;$('#practice-score').textContent=`Q: ${Q.hits}/${Q.shots} hits · return: ${Q.returns} · E: ${E.hits}/${E.shots} hits`;
+    const {Q,E}=drill.results;$('#practice-score').textContent=`Q: ${Q.hits}/${Q.shots} hits · E: ${E.hits}/${E.shots} hits`;
   }
   function circle(x,y,r,fill,stroke){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.stroke();}}
   function line(a,b,color,width=3,dashed=false){ctx.beginPath();ctx.setLineDash(dashed?[12,12]:[]);ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();ctx.setLineDash([]);}
@@ -63,11 +63,11 @@ export function mountAuroraPractice(root){
     line(drill.player,aim,'#69547d',2,true);cross(aim,'#d4b477');
     for(const shot of drill.shots){const spec=SPELLS[shot.spell],end={x:shot.origin.x+shot.direction.x*spec.range,y:shot.origin.y+shot.direction.y*spec.range};
       if(shot.phase==='cast'){line(shot.origin,end,shot.spell==='Q'?'#b58bd4':'#72b9a9',3,true);circle(drill.player.x,drill.player.y,75+25*shot.elapsed/spec.delay,null,'#dfbeff');}
-      else if(shot.spell==='Q'){const p=shotPosition(shot);circle(p.x,p.y,spec.radius,shot.phase==='return'?'#74e4ca':'#dba4ff');}
+      else if(shot.spell==='Q'){const p=shotPosition(shot);circle(p.x,p.y,spec.radius,'#dba4ff');}
     }
     const blast=drill.lastBySpell.E;
     if(blast&&drill.time-blast.finishedAt<0.25)line(blast.origin,{x:blast.origin.x+blast.direction.x*900,y:blast.origin.y+blast.direction.y*900},blast.hit?'#8aead0':'#bd9ae0',90);
-    const hit=drill.shots.some(s=>s.hit||s.returnHit)||(drill.last?.hit&&drill.time-drill.last.finishedAt<0.35);
+    const hit=drill.shots.some(s=>s.hit)||(drill.last?.hit&&drill.time-drill.last.finishedAt<0.35);
     ctx.lineWidth=4;circle(drill.target.x,drill.target.y,WORLD.targetRadius,hit?'#267f73':'#743b4a',hit?'#96efcf':'#e69aa5');
     label(drill.speed?drill.target.direction>0?'→':'←':'•',drill.target.x,drill.target.y+11,'#fff',38);label('Target',drill.target.x,drill.target.y-80);
     character();
@@ -77,7 +77,7 @@ export function mountAuroraPractice(root){
     frame=null;if(!active||!running||document.hidden)return;const dt=lastTime?Math.min((timestamp-lastTime)/1000,0.05):0;lastTime=timestamp;
     if(held.size){let x=0,y=0;for(const key of held){x+=arrows[key][0];y+=arrows[key][1];}if(x||y)moveTo(drill,{x:drill.player.x+x*150,y:drill.player.y+y*150});else stopMoving(drill);}
     step(drill,dt);
-    if(drill.last&&lastResult!==drill.last){lastResult=drill.last;status(drill.last.spell==='Q'?`Q ${drill.last.hit?'hit':'missed'} outbound · return ${drill.last.returnHit?'hit':'missed'}`:`E ${drill.last.hit?'hit':'missed'}`);}
+    if(drill.last&&lastResult!==drill.last){lastResult=drill.last;status(`${drill.last.spell} ${drill.last.hit?'hit':'missed'}`);}
     controls();draw();frame=requestAnimationFrame(tick);
   }
   function pause(){running=false;lastTime=0;if(held.size)stopMoving(drill);held.clear();cancelAnimationFrame(frame);frame=null;controls();if(active)draw();}

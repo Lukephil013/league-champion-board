@@ -1,6 +1,6 @@
 // User-supplied timings; hitboxes and recoil distance are practice geometry.
 export const SPELLS = Object.freeze({
-  Q: { delay: 0.25, speed: 1600, returnSpeed: 2000, range: 900, radius: 30 },
+  Q: { delay: 0.25, speed: 1600, range: 900, radius: 30 },
   E: { delay: 0.35, range: 900, radius: 45, recoil: 250 }
 });
 export const WORLD = { width: 2000, height: 1300, player: { x: 1000, y: 1080 }, playerSpeed: 350, targetRadius: 55, laneHalfWidth: 340 };
@@ -16,7 +16,7 @@ export function sweptHit(a,b,targetA,targetB,radius){
 export function createDrill({distance=650,speed=350,pattern='strafe'}={}){
   return {distance,speed,pattern,time:0,player:{...WORLD.player},destination:null,recoil:null,
     target:{x:1000,y:1080-distance,direction:1,nextJuke:1},shots:[],last:null,lastBySpell:{},
-    results:{Q:{shots:0,hits:0,returns:0},E:{shots:0,hits:0}}};
+    results:{Q:{shots:0,hits:0},E:{shots:0,hits:0}}};
 }
 export function boundedPoint(point){return {x:Math.max(85,Math.min(WORLD.width-85,point.x)),y:Math.max(85,Math.min(WORLD.height-85,point.y))};}
 export function moveTo(drill,point){
@@ -30,7 +30,7 @@ export function fire(drill,spell,aim){
   const dx=aim.x-drill.player.x,dy=aim.y-drill.player.y,length=Math.hypot(dx,dy);
   if(!Number.isFinite(length)||length<1)return false;
   drill.shots.push({spell,elapsed:0,phase:'cast',origin:{...drill.player},position:{...drill.player},
-    direction:{x:dx/length,y:dy/length},aim:{...aim},targetAtCast:{x:drill.target.x,y:drill.target.y},hit:false,returnHit:false,travelled:0});
+    direction:{x:dx/length,y:dy/length},aim:{...aim},targetAtCast:{x:drill.target.x,y:drill.target.y},hit:false,travelled:0});
   return true;
 }
 export function shotPosition(shot){return {...shot.position};}
@@ -54,7 +54,7 @@ function movePlayer(drill,dt){
   else{drill.player.x+=dx/length*travel;drill.player.y+=dy/length*travel;}
 }
 function complete(drill,shot){
-  const result=drill.results[shot.spell];result.shots++;if(shot.hit)result.hits++;if(shot.returnHit)result.returns++;
+  const result=drill.results[shot.spell];result.shots++;if(shot.hit)result.hits++;
   drill.last={...shot,finishedAt:drill.time,targetAtFinish:{x:drill.target.x,y:drill.target.y}};
   drill.lastBySpell[shot.spell]=drill.last;shot.done=true;
 }
@@ -83,12 +83,7 @@ export function step(drill,dt,random=Math.random){
         shot.travelled=Math.min(spec.range,shot.travelled+spec.speed*delta);
         shot.position={x:shot.origin.x+shot.direction.x*shot.travelled,y:shot.origin.y+shot.direction.y*shot.travelled};
         if(sweptHit(before,shot.position,targetBefore,drill.target,spec.radius+WORLD.targetRadius))shot.hit=true;
-        if(shot.travelled>=spec.range-EPS)shot.phase='return';
-      }else{
-        const dx=drill.player.x-shot.position.x,dy=drill.player.y-shot.position.y,length=Math.hypot(dx,dy),travel=spec.returnSpeed*delta;
-        shot.position=length<=travel?{...drill.player}:{x:shot.position.x+dx/length*travel,y:shot.position.y+dy/length*travel};
-        if(sweptHit(before,shot.position,targetBefore,drill.target,spec.radius+WORLD.targetRadius))shot.returnHit=true;
-        if(length<=travel+EPS)complete(drill,shot);
+        if(shot.travelled>=spec.range-EPS)complete(drill,shot);
       }
     }
     drill.shots=drill.shots.filter(s=>!s.done);
