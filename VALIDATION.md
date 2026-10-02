@@ -79,3 +79,7 @@ Removed the returning Q projectile and return-hit counter at the user's request.
 ### Aurora CS punish drill (September 29, 2026)
 
 The earlier player-to-minion melee order was replaced with an enemy champion that waits for an allied minion to reach last-hit health, walks into melee range, winds up, last-hits, and retreats. Q/E hits during the approach or windup count as CS punishes. All 36 automated checks pass, including the CS cycle, hit timing, outbound-only Q, overlapping Q/E, and the rest of the board. The local browser visibly showed the enemy approaching a selected low-health minion, and the full arena fit in the checked desktop viewport. Minion health loss and enemy behavior remain practice approximations.
+
+### Per-account role order (October 2, 2026)
+
+All 38 automated checks pass. The new tests cover per-account role order, unchanged champion placements and notes, backup round trips, and rejection of malformed role orders. In the in-app browser, dragging Jungle above ADC changed only the selected QA account; Undo restored the original order. The up/down button also changed the order, which survived a reload. A second QA account retained its own ADC-first order. The test account was restored to its original order after verification.

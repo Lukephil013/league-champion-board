@@ -1,4 +1,4 @@
-import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, placeInRole, localDate, validDate, lolalyticsUrl, validOpggUrl, championRankedStats, accountRankedSummary, mergeRankedHistories } from './core.mjs';
+import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, moveRole, placeInRole, localDate, validDate, lolalyticsUrl, validOpggUrl, championRankedStats, accountRankedSummary, mergeRankedHistories } from './core.mjs';
 import { mountAuroraPractice } from './aurora-practice.mjs';
 const $ = s => document.querySelector(s);
 const auroraPractice = mountAuroraPractice($('#practice-view'));
@@ -35,7 +35,7 @@ function formDialog({title,description='',label='',value='',choices=null,submit=
     if(!confirm&&!choices){input.focus();input.select();}
   });
 }
-async function newAccount(){const name=await formDialog({title:'Add an account',label:'Account name',description:'Use your Riot ID or any label that makes sense to you.',submit:'Add account'});if(name){activeAccountId=crypto.randomUUID();activeView='account';changeAccounts(accounts=>accounts.push({id:activeAccountId,name,champions:[]}),`Added ${name}.`);}}
+async function newAccount(){const name=await formDialog({title:'Add an account',label:'Account name',description:'Use your Riot ID or any label that makes sense to you.',submit:'Add account'});if(name){activeAccountId=crypto.randomUUID();activeView='account';changeAccounts(accounts=>accounts.push({id:activeAccountId,name,champions:[],roleOrder:[...ROLES]}),`Added ${name}.`);}}
 async function accountAction(account){
   const index=state.accounts.indexOf(account);
   const choices=[{value:'rename',label:'Rename account'},{value:'focus',label:'Edit account focus'},{value:'opgg',label:account.opggUrl?'Edit OP.GG profile':'Add OP.GG profile'},...(index>0?[{value:'earlier',label:'Move account earlier'}]:[]),...(index<state.accounts.length-1?[{value:'later',label:'Move account later'}]:[]),{value:'delete',label:'Delete account'}];
@@ -101,6 +101,13 @@ function openLibrary(role=null){
   quickTarget=activeAccountId;quickRole=role;activeView='library';renderBoard();renderTray();$('#search').focus();
 }
 function opggLabel(url){try{const parts=new URL(url).pathname.split('/').filter(Boolean),handle=decodeURIComponent(parts[3]),cut=handle.lastIndexOf('-');return cut>0?`${parts[2].toUpperCase()} · ${handle.slice(0,cut)}#${handle.slice(cut+1)}`:`${parts[2].toUpperCase()} · ${handle}`;}catch{return 'OP.GG profile';}}
+function shiftRoleOnBoard(account,role,offset){
+  const order=account.roleOrder||ROLES,target=order[order.indexOf(role)+offset];if(!target)return;
+  commit(moveRole(state,account.id,role,target,offset>0),`${role} moved ${offset<0?'up':'down'}.`);
+  const section=[...document.querySelectorAll('.role-section')].find(node=>node.dataset.role===role);
+  const control=section?.querySelector(offset<0?'.role-up:not(:disabled)':'.role-down:not(:disabled)');
+  (control||section?.querySelector('.role-heading h3'))?.focus({preventScroll:true});
+}
 function renderBoard(){
   if(!state.accounts.some(a=>a.id===activeAccountId))activeAccountId=state.accounts[0]?.id||null;
   $('#account-count').textContent=state.accounts.length;
@@ -114,10 +121,19 @@ function renderBoard(){
   $('#library-hint').textContent=quickTarget&&a?`Adding to ${a.name}${quickRole?' · '+quickRole:''}. You can also drag onto an account in the sidebar.`:'Add a champion to an account or open its shared notes.';
   const board=$('#accounts');board.replaceChildren();
   if(!a){const empty=el('div','empty-board');empty.append(el('h3','','Make room for your pool.'),el('p','','Add an account, then choose champions for each role.'),button('+ Add your first account',newAccount));board.append(empty);return;}
+  const orderedRoles=a.roleOrder||ROLES;
   for(const group of groupChampions(a)){
     if(group.role==='Unassigned'&&!group.champions.length)continue;
     const section=el('section','role-section');section.dataset.accountId=a.id;section.dataset.role=group.role;
-    const heading=el('div','role-heading');heading.append(el('h3','',group.role),el('span','count',String(group.champions.length)),button('+ Add',()=>openLibrary(group.role),`Add ${group.role} champion`));section.append(heading);
+    const heading=el('div','role-heading');heading.draggable=group.role!=='Unassigned';heading.title=heading.draggable?'Drag this heading to reorder roles':'';
+    if(heading.draggable){const grip=el('span','role-grip','⠿');grip.setAttribute('aria-hidden','true');heading.append(grip);}
+    const title=el('h3','',group.role);title.tabIndex=-1;heading.append(title,el('span','count',String(group.champions.length)));
+    const add=button('+ Add',()=>openLibrary(group.role),`Add ${group.role} champion`);add.className='role-add';heading.append(add);
+    if(group.role!=='Unassigned'){
+      const index=orderedRoles.indexOf(group.role),up=button('↑',()=>shiftRoleOnBoard(a,group.role,-1),`Move ${group.role} up on ${a.name}`),down=button('↓',()=>shiftRoleOnBoard(a,group.role,1),`Move ${group.role} down on ${a.name}`);
+      up.className='role-up';down.className='role-down';up.disabled=index===0;down.disabled=index===ROLES.length-1;heading.append(up,down);
+    }
+    section.append(heading);
     const grid=el('div','role-grid');grid.setAttribute('aria-label',`${a.name} ${group.role} champions`);
     for(const id of group.champions)grid.append(card(champions.get(id)||{id,name:id},a));
     if(!group.champions.length)grid.append(el('p','role-empty',`No ${group.role.toLowerCase()} champions yet. Drop one here or use Add.`));
@@ -192,12 +208,24 @@ $('#import-file').onchange=async()=>{
 };
 $('#refresh-catalog').onclick=async()=>{const b=$('#refresh-catalog');b.disabled=true;b.textContent='Refreshing…';try{const r=await fetch('/api/catalog/refresh',{method:'POST',headers:{'X-Champion-Board':'refresh'}});const next=await r.json();if(!r.ok)throw new Error(next.error);setCatalog(next);notify(`Roster refreshed: ${catalog.champions.length} champions.`);}catch(e){notify(e.message||'Refresh failed. Existing roster kept.');}finally{b.disabled=false;b.textContent='Refresh roster';}};
 function setCatalog(next){catalog=next;champions=new Map(catalog.champions.map(c=>[c.id,c]));const catalogIds=new Map(catalog.champions.map(c=>[folded(c.id),c.id]));let normalized=false;for(const account of Object.values(state.rankedHistory.accounts)){for(const match of Object.values(account.matches)){const id=catalogIds.get(folded(match.championId));if(id&&id!==match.championId){match.championId=id;normalized=true;}}}if(normalized)save();$('#catalog-version').textContent=`Data Dragon ${catalog.version}`;renderTray();renderBoard();}
-document.addEventListener('dragstart',e=>{const c=e.target.closest('.champ-card');if(!c)return;e.dataTransfer.setData('application/x-champion-board',JSON.stringify({championId:c.dataset.champion,sourceId:c.dataset.account||null}));e.dataTransfer.effectAllowed='copyMove';c.classList.add('dragging');});
-function clearDrop(){document.querySelectorAll('.drop-target,.drop-before,.dragging').forEach(n=>n.classList.remove('drop-target','drop-before','dragging'));}
+document.addEventListener('dragstart',e=>{
+  const heading=e.target.closest('.role-heading[draggable=true]');
+  if(heading){if(e.target.closest('button')){e.preventDefault();return;}const section=heading.closest('.role-section');e.dataTransfer.setData('application/x-role-order',JSON.stringify({accountId:section.dataset.accountId,role:section.dataset.role}));e.dataTransfer.effectAllowed='move';heading.classList.add('dragging');return;}
+  const c=e.target.closest('.champ-card');if(!c)return;e.dataTransfer.setData('application/x-champion-board',JSON.stringify({championId:c.dataset.champion,sourceId:c.dataset.account||null}));e.dataTransfer.effectAllowed='copyMove';c.classList.add('dragging');
+});
+function clearDrop(){document.querySelectorAll('.drop-target,.drop-before,.role-drop-before,.role-drop-after,.dragging').forEach(n=>n.classList.remove('drop-target','drop-before','role-drop-before','role-drop-after','dragging'));}
 document.addEventListener('dragend',clearDrop);
-document.querySelector('.workspace').addEventListener('dragover',e=>{if(!Array.from(e.dataTransfer.types).includes('application/x-champion-board'))return;const a=e.target.closest('[data-account-id]');if(!a)return;e.preventDefault();document.querySelectorAll('.drop-target,.drop-before').forEach(n=>n.classList.remove('drop-target','drop-before'));const zone=e.target.closest('.role-section')||a;zone.classList.add('drop-target');e.target.closest('.champ-card')?.classList.add('drop-before');});
-document.querySelector('.workspace').addEventListener('dragleave',e=>{if(!document.querySelector('.workspace').contains(e.relatedTarget))document.querySelectorAll('.drop-target,.drop-before').forEach(n=>n.classList.remove('drop-target','drop-before'));});
-document.querySelector('.workspace').addEventListener('drop',e=>{e.preventDefault();clearDrop();const target=e.target.closest('[data-account-id]');if(!target)return;try{const {championId,sourceId}=JSON.parse(e.dataTransfer.getData('application/x-champion-board'));if(!champions.has(championId)&&!state.accounts.some(a=>a.champions.includes(championId)))return;const role=e.target.closest('[data-role]')?.dataset.role;const before=e.target.closest('.champ-card')?.dataset.champion;const next=role?placeInRole(state,championId,target.dataset.accountId,role,sourceId,before):placeChampion(state,championId,target.dataset.accountId,sourceId,false,before);commit(next,`${nameOf(championId)} placed.`);}catch(err){notify(err.message||'Could not place champion.');}});
+document.querySelector('.workspace').addEventListener('dragover',e=>{
+  const types=Array.from(e.dataTransfer.types);
+  if(types.includes('application/x-role-order')){const section=e.target.closest('.role-section');if(!section||section.dataset.role==='Unassigned')return;e.preventDefault();e.dataTransfer.dropEffect='move';document.querySelectorAll('.role-drop-before,.role-drop-after').forEach(n=>n.classList.remove('role-drop-before','role-drop-after'));section.classList.add(e.clientY<section.getBoundingClientRect().top+section.getBoundingClientRect().height/2?'role-drop-before':'role-drop-after');return;}
+  if(!types.includes('application/x-champion-board'))return;const a=e.target.closest('[data-account-id]');if(!a)return;e.preventDefault();document.querySelectorAll('.drop-target,.drop-before').forEach(n=>n.classList.remove('drop-target','drop-before'));const zone=e.target.closest('.role-section')||a;zone.classList.add('drop-target');e.target.closest('.champ-card')?.classList.add('drop-before');
+});
+document.querySelector('.workspace').addEventListener('dragleave',e=>{if(!document.querySelector('.workspace').contains(e.relatedTarget))clearDrop();});
+document.querySelector('.workspace').addEventListener('drop',e=>{
+  const types=Array.from(e.dataTransfer.types);
+  if(types.includes('application/x-role-order')){const section=e.target.closest('.role-section'),after=section?.classList.contains('role-drop-after');e.preventDefault();clearDrop();if(!section||section.dataset.role==='Unassigned')return;try{const {accountId,role}=JSON.parse(e.dataTransfer.getData('application/x-role-order'));if(accountId!==section.dataset.accountId)return;commit(moveRole(state,accountId,role,section.dataset.role,after),`${role} role moved.`);}catch(err){notify(err.message||'Could not reorder role.');}return;}
+  if(!types.includes('application/x-champion-board'))return;e.preventDefault();clearDrop();const target=e.target.closest('[data-account-id]');if(!target)return;try{const {championId,sourceId}=JSON.parse(e.dataTransfer.getData('application/x-champion-board'));if(!champions.has(championId)&&!state.accounts.some(a=>a.champions.includes(championId)))return;const role=e.target.closest('[data-role]')?.dataset.role;const before=e.target.closest('.champ-card')?.dataset.champion;const next=role?placeInRole(state,championId,target.dataset.accountId,role,sourceId,before):placeChampion(state,championId,target.dataset.accountId,sourceId,false,before);commit(next,`${nameOf(championId)} placed.`);}catch(err){notify(err.message||'Could not place champion.');}
+});
 window.addEventListener('beforeunload',e=>{if(dirty&&!save()){e.preventDefault();e.returnValue='';}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&dirty)save();});
 window.addEventListener('storage',e=>{if(e.key!==STORAGE_KEY)return;undoAccounts=null;undoEntry=null;$('#undo').hidden=true;if(dirty){saveBlocked=true;banner('This board changed in another tab. Export your current notes before reloading; saving is paused to prevent overwriting the other tab.');$('#save-status').textContent='Saving paused';return;}try{if(!e.newValue)throw new Error();state=validateState(JSON.parse(e.newValue));if(selectedChampion){$('#notes-text').value=state.notes[selectedChampion]||'';$('#note-length').textContent=`${$('#notes-text').value.length.toLocaleString()} characters`;renderNotePlacement();}renderBoard();renderTray();renderJournal();notify('Board updated from another tab.');}catch{saveBlocked=true;banner('Saved data changed unexpectedly. Reload or restore a backup before making further changes.');}});

@@ -58,7 +58,16 @@ export function mergeRankedHistories(...histories){
 export function initialState() { return { schemaVersion: 3, accounts: [], notes: { ...SEEDS }, journal: [], rankedHistory: emptyRankedHistory() }; }
 export function localDate(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
 export function validDate(value) { return typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value+'T12:00:00Z')) && new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value; }
-export function groupChampions(account) { return [...ROLES,'Unassigned'].map(role=>({role,champions:account.champions.filter(id=>(account.championDetails?.[id]?.role||'Unassigned')===role)})); }
+export function groupChampions(account) { return [...(account.roleOrder||ROLES),'Unassigned'].map(role=>({role,champions:account.champions.filter(id=>(account.championDetails?.[id]?.role||'Unassigned')===role)})); }
+export function moveRole(state,accountId,role,targetRole,after=false){
+  if(!ROLES.includes(role)||!ROLES.includes(targetRole))throw new Error('Choose a valid role.');
+  if(role===targetRole)return state;
+  const account=state.accounts.find(a=>a.id===accountId);if(!account)return state;
+  const order=[...(account.roleOrder||ROLES)];order.splice(order.indexOf(role),1);
+  order.splice(order.indexOf(targetRole)+(after?1:0),0,role);
+  if(order.every((name,index)=>name===(account.roleOrder||ROLES)[index]))return state;
+  const next=structuredClone(state);next.accounts.find(a=>a.id===accountId).roleOrder=order;return next;
+}
 export function persistState(storage, state) {
   try { storage.setItem(STORAGE_KEY, JSON.stringify(state)); return { saved:true }; }
   catch { return { saved:false, message:'Browser storage is unavailable or full. Your current changes are still on screen. Export a backup before closing this page.' }; }
@@ -72,6 +81,7 @@ export function validateState(raw) {
   const accounts = raw.accounts.map(a => {
     if (!record(a) || !id(a.id) || seen.has(a.id) || typeof a.name !== 'string' || !a.name.trim() || a.name.length > 80 || !Array.isArray(a.champions) || a.champions.length > 1000 || a.champions.some(c => !id(c)) || new Set(a.champions).size !== a.champions.length) fail();
     const account = { id: a.id, name: a.name.trim(), champions: [...a.champions] };
+    if(a.roleOrder!==undefined){if(!Array.isArray(a.roleOrder)||a.roleOrder.length!==ROLES.length||new Set(a.roleOrder).size!==ROLES.length||a.roleOrder.some(role=>!ROLES.includes(role)))fail();account.roleOrder=[...a.roleOrder];}
     if (a.focus !== undefined) { if(typeof a.focus !== 'string' || a.focus.length > 1000) fail(); account.focus=a.focus; }
     if (a.opggUrl !== undefined) { if(typeof a.opggUrl!=='string'||!validOpggUrl(a.opggUrl)||a.opggUrl.length>500)fail(); account.opggUrl=a.opggUrl; }
     if (a.championDetails !== undefined) {
