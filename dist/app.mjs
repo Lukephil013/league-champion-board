@@ -175,6 +175,11 @@ function renderNotePlacement(){
   $('#note-account').disabled=!available.length;$('#note-add').disabled=!available.length;
   if(!available.length){const o=el('option','',state.accounts.length?'Already on every account':'Create an account first');$('#note-account').append(o);}
 }
+function matchupPortrait(id){
+  const c=champions.get(id);if(!c?.image)return null;
+  const link=el('a','matchup-portrait');link.href=lolalyticsUrl(id);link.target='_blank';link.rel='noopener noreferrer';link.title=`Open ${c.name} on LoLalytics`;link.setAttribute('aria-label',link.title);
+  const img=el('img');img.src=c.image;img.alt='';img.width=32;img.height=32;img.draggable=false;link.append(img);return link;
+}
 function renderNotes(){
   if(!selectedChampion)return;
   const c=champions.get(selectedChampion)||{name:selectedChampion,title:'',image:''},profile=$('#notes-lolalytics');
@@ -186,10 +191,11 @@ function renderNotes(){
   const list=$('#matchup-notes-list');list.replaceChildren();
   const general=button('General notes',()=>openNotes(selectedChampion),`Open ${c.name} general notes`);general.className='notebook-tab';if(!selectedOpponent)general.setAttribute('aria-current','page');list.append(general);
   for(const opponent of Object.keys(matchups).sort((a,b)=>nameOf(a).localeCompare(nameOf(b)))){
-    const b=button(`vs. ${nameOf(opponent)}`,()=>openNotes(selectedChampion,opponent),`Open ${c.name} vs. ${nameOf(opponent)} notes`);b.className='notebook-tab';if(selectedOpponent===opponent)b.setAttribute('aria-current','page');list.append(b);
+    const row=el('div','notebook-matchup'),portrait=matchupPortrait(opponent),b=button(`vs. ${nameOf(opponent)}`,()=>openNotes(selectedChampion,opponent),`Open ${c.name} vs. ${nameOf(opponent)} notes`);b.className='notebook-tab';if(selectedOpponent===opponent)b.setAttribute('aria-current','page');if(portrait)row.append(portrait);row.append(b);list.append(row);
   }
   $('#matchup-empty').hidden=Object.keys(matchups).length>0;
-  $('#notebook-title').textContent=selectedOpponent?`${c.name} vs. ${nameOf(selectedOpponent)}`:'General notes';
+  const title=$('#notebook-title');title.replaceChildren();title.setAttribute('aria-label',selectedOpponent?`${c.name} vs. ${nameOf(selectedOpponent)}`:'General notes');
+  if(selectedOpponent){title.append(el('span','',`${c.name} vs.`));const portrait=matchupPortrait(selectedOpponent);if(portrait)title.append(portrait);title.append(el('span','',nameOf(selectedOpponent)));}else title.textContent='General notes';
   $('#notes-label').textContent=selectedOpponent?'Matchup notes':'Champion notes';
   $('#notes-text').placeholder=selectedOpponent?'Trading patterns, cooldowns, lane decisions, reminders…':'Champion mechanics, build experiments, reminders…';
   $('#notes-text').value=selectedOpponent?matchups[selectedOpponent]:state.notes[selectedChampion]||'';
