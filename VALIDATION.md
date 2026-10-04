@@ -83,3 +83,9 @@ The earlier player-to-minion melee order was replaced with an enemy champion tha
 ### Per-account role order (October 2, 2026)
 
 All 38 automated checks pass. The new tests cover per-account role order, unchanged champion placements and notes, backup round trips, and rejection of malformed role orders. In the in-app browser, dragging Jungle above ADC changed only the selected QA account; Undo restored the original order. The up/down button also changed the order, which survived a reload. A second QA account retained its own ADC-first order. The test account was restored to its original order after verification.
+
+### Champion pages and matchup notebooks (October 4, 2026)
+
+All 41 automated checks pass. New coverage verifies version 1–3 migration to version 4, directional champion/opponent notebooks, blank and unknown-champion notes, preservation across placement changes, and malformed matchup rejection without mutation. Browser checks created Vex vs. Yasuo through the searchable picker using the keyboard, edited its text, switched to general notes, used browser Back, and reloaded the direct matchup URL with the text intact. Choosing an existing opponent reopened its notebook; deleting and Undo restored the text.
+
+The browser export preview contained the matchup notes. Restoring that JSON through the file picker produced an identical exported board; an invalid numeric matchup note was rejected and the exported board stayed identical. The automation did not receive a download event for the existing blob-download control, so the preview JSON was saved locally for the import check. Desktop and 390 × 844 views were inspected with no document-level horizontal overflow; the viewport was reset afterward. The original QA board was restored and compared exactly, and no personal Chrome board data was edited.

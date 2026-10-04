@@ -4,9 +4,9 @@ const $ = s => document.querySelector(s);
 const auroraPractice = mountAuroraPractice($('#practice-view'));
 const el = (tag,className,text) => { const n=document.createElement(tag); if(className)n.className=className;if(text!==undefined)n.textContent=text;return n; };
 const button = (text,action,label) => {const b=el('button','',text);b.type='button';if(label)b.setAttribute('aria-label',label);b.addEventListener('click',action);return b;};
-let state, catalog, champions = new Map(), selectedChampion=null, noteTimer, undoAccounts=null, saveBlocked=false, dirty=false, quickTarget=null, quickRole=null, activeView='account', activeAccountId=null, activeEntryId=null, undoEntry=null, rankedPoll=null, rankedConfigured=false;
+let state, catalog, champions = new Map(), selectedChampion=null, selectedOpponent=null, notesReturnView='account', noteTimer, undoAccounts=null, undoMatchup=null, saveBlocked=false, dirty=false, quickTarget=null, quickRole=null, activeView='account', activeAccountId=null, activeEntryId=null, undoEntry=null, rankedPoll=null, rankedConfigured=false;
 const banner = text => {$('#error-banner').textContent=text;$('#error-banner').hidden=!text;};
-try { const saved=localStorage.getItem(STORAGE_KEY);const raw=saved?JSON.parse(saved):null;state=raw?validateState(raw):initialState();if(raw?.schemaVersion===1){try{if(!localStorage.getItem('league-champion-board:before-v2'))localStorage.setItem('league-champion-board:before-v2',saved);}catch{/* Keep the successfully read board if the optional migration snapshot cannot fit. */}} }
+try { const saved=localStorage.getItem(STORAGE_KEY);const raw=saved?JSON.parse(saved):null;state=raw?validateState(raw):initialState();if(raw&&raw.schemaVersion<4){try{const key='league-champion-board:before-v4';if(!localStorage.getItem(key))localStorage.setItem(key,saved);}catch{/* Keep the successfully read board if the optional migration snapshot cannot fit. */}} }
 catch {state=initialState();saveBlocked=true;banner('Your saved data could not be read. It has not been overwritten. Export any visible notes, then restore a valid backup using Import.');}
 function save() {
   clearTimeout(noteTimer);
@@ -16,7 +16,7 @@ function save() {
   dirty=true;$('#save-status').textContent='Not saved';$('#notes-status').textContent='Not saved — export a backup';$('#journal-status').textContent='Not saved — export a backup';banner(result.message);return false;
 }
 function notify(text,withUndo=false){$('#toast-text').textContent=text;$('#undo').hidden=!withUndo;$('#toast').hidden=false;}
-function commit(next,message) {if(next===state)return;undoAccounts=structuredClone(state.accounts);undoEntry=null;state=next;save();renderBoard();renderTray();if(selectedChampion)renderNotePlacement();notify(message,true);}
+function commit(next,message) {if(next===state)return;undoAccounts=structuredClone(state.accounts);undoEntry=null;undoMatchup=null;state=next;save();renderBoard();renderTray();if(selectedChampion)renderNotePlacement();notify(message,true);}
 function changeAccounts(fn,message){const next=structuredClone(state);fn(next.accounts);commit(next,message);}
 function nameOf(id){return champions.get(id)?.name||id;}
 function folded(s){return s.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');}
@@ -35,7 +35,7 @@ function formDialog({title,description='',label='',value='',choices=null,submit=
     if(!confirm&&!choices){input.focus();input.select();}
   });
 }
-async function newAccount(){const name=await formDialog({title:'Add an account',label:'Account name',description:'Use your Riot ID or any label that makes sense to you.',submit:'Add account'});if(name){activeAccountId=crypto.randomUUID();activeView='account';changeAccounts(accounts=>accounts.push({id:activeAccountId,name,champions:[],roleOrder:[...ROLES]}),`Added ${name}.`);}}
+async function newAccount(){const name=await formDialog({title:'Add an account',label:'Account name',description:'Use your Riot ID or any label that makes sense to you.',submit:'Add account'});if(name){switchView('account');activeAccountId=crypto.randomUUID();changeAccounts(accounts=>accounts.push({id:activeAccountId,name,champions:[],roleOrder:[...ROLES]}),`Added ${name}.`);}}
 async function accountAction(account){
   const index=state.accounts.indexOf(account);
   const choices=[{value:'rename',label:'Rename account'},{value:'focus',label:'Edit account focus'},{value:'opgg',label:account.opggUrl?'Edit OP.GG profile':'Add OP.GG profile'},...(index>0?[{value:'earlier',label:'Move account earlier'}]:[]),...(index<state.accounts.length-1?[{value:'later',label:'Move account later'}]:[]),{value:'delete',label:'Delete account'}];
@@ -68,7 +68,7 @@ async function placementAction(championId,account){
   else changeAccounts(accounts=>{const a=accounts.find(a=>a.id===account.id);if(action==='remove'){a.champions=a.champions.filter(c=>c!==championId);if(a.championDetails)delete a.championDetails[championId];}else{const reordered=shift(roleGroup,championId,action==='earlier'?-1:1);let i=0;a.champions=a.champions.map(id=>roleGroup.includes(id)?reordered[i++]:id);}},action==='remove'?'Placement removed. Notes kept.':'Champions reordered.');
 }
 function card(c,account=null){
-  const item=el('div',`champ-card${state.notes[c.id]?' has-notes':''}`);item.draggable=true;item.dataset.champion=c.id;if(account)item.dataset.account=account.id;
+  const item=el('div',`champ-card${state.notes[c.id]||Object.values(state.matchupNotes[c.id]||{}).some(Boolean)?' has-notes':''}`);item.draggable=true;item.dataset.champion=c.id;if(account)item.dataset.account=account.id;
   const portrait=el('a','champ-portrait-link');portrait.href=lolalyticsUrl(c.id);portrait.target='_blank';portrait.rel='noopener noreferrer';portrait.title=`Open ${c.name} on LoLalytics`;portrait.setAttribute('aria-label',portrait.title);portrait.draggable=false;
   const img=el('img');img.src=c.image||'/assets/champions/JarvanIV.png';img.alt='';img.width=100;img.height=100;img.loading='lazy';img.draggable=false;
   if(!c.image)img.hidden=true;
@@ -93,11 +93,12 @@ function renderTray(){
   if(!results.length)$('#champion-tray').append(el('p','no-results','No champions match that search.'));
 }
 function switchView(view,accountId=null){
-  if(dirty)save();activeView=view;if(accountId)activeAccountId=accountId;
+  if(dirty)save();if(selectedChampion){history.replaceState(null,'',location.pathname+location.search);selectedChampion=null;selectedOpponent=null;}document.title='Champion Board';activeView=view;if(accountId)activeAccountId=accountId;
   if(view!=='library'){quickTarget=null;quickRole=null;}
   renderBoard();if(view==='journal')renderJournal();
 }
 function openLibrary(role=null){
+  if(dirty)save();if(selectedChampion){history.replaceState(null,'',location.pathname+location.search);selectedChampion=null;selectedOpponent=null;}document.title='Champion Board';
   quickTarget=activeAccountId;quickRole=role;activeView='library';renderBoard();renderTray();$('#search').focus();
 }
 function opggLabel(url){try{const parts=new URL(url).pathname.split('/').filter(Boolean),handle=decodeURIComponent(parts[3]),cut=handle.lastIndexOf('-');return cut>0?`${parts[2].toUpperCase()} · ${handle.slice(0,cut)}#${handle.slice(cut+1)}`:`${parts[2].toUpperCase()} · ${handle}`;}catch{return 'OP.GG profile';}}
@@ -116,6 +117,7 @@ function renderBoard(){
   for(const [id,view]of [['journal-nav','journal'],['library-nav','library'],['practice-nav','practice']]){if(activeView===view)$('#'+id).setAttribute('aria-current','page');else $('#'+id).removeAttribute('aria-current');}
   $('#account-view').hidden=activeView!=='account';$('#journal-view').hidden=activeView!=='journal';$('#library-view').hidden=activeView!=='library';
   $('#practice-view').hidden=activeView!=='practice';auroraPractice.setActive(activeView==='practice');
+  $('#notes-page').hidden=activeView!=='notes';
   const a=state.accounts.find(a=>a.id===activeAccountId),profile=$('#selected-opgg'),rankedPanel=$('#selected-ranked');$('#accounts-title').textContent=a?.name||'Your accounts';$('#selected-focus').textContent=a?.focus||'';$('#selected-focus').hidden=!a?.focus;$('#manage-selected').hidden=!a;$('#open-library').hidden=!a;profile.hidden=!a?.opggUrl;if(a?.opggUrl){$('#selected-opgg-id').textContent=opggLabel(a.opggUrl);$('#selected-opgg-link').href=a.opggUrl;$('#selected-opgg-link').setAttribute('aria-label',`Open ${a.name} on OP.GG`);}
   const accountStats=a?accountRankedSummary(state,a.id):null;rankedPanel.hidden=!accountStats?.games;if(accountStats?.games){rankedPanel.textContent=`Ranked Solo/Duo · ${rankedCoverage({...accountStats,wins:Object.values(accountStats.champions).reduce((sum,c)=>sum+c.wins,0),losses:Object.values(accountStats.champions).reduce((sum,c)=>sum+c.losses,0)})}`;}
   $('#library-hint').textContent=quickTarget&&a?`Adding to ${a.name}${quickRole?' · '+quickRole:''}. You can also drag onto an account in the sidebar.`:'Add a champion to an account or open its shared notes.';
@@ -164,7 +166,7 @@ $('#open-library').onclick=()=>openLibrary();$('#manage-selected').onclick=()=>{
 $('#new-entry').onclick=newEntry;$('#first-entry').onclick=newEntry;
 for(const id of ['entry-title','entry-body','entry-date'])$('#'+id).addEventListener('input',editEntry);
 $('#entry-date').addEventListener('blur',()=>{if(!validDate($('#entry-date').value)){$('#entry-date').value=state.journal.find(e=>e.id===activeEntryId)?.date||localDate();$('#entry-date').setCustomValidity('');}});
-$('#delete-entry').onclick=async()=>{const entry=state.journal.find(e=>e.id===activeEntryId);if(!entry)return;if(!await formDialog({title:'Delete this journal entry?',description:`${entry.date} · ${entry.title||'Untitled entry'}`,confirm:true,submit:'Delete entry'}))return;undoEntry=structuredClone(entry);undoAccounts=null;state.journal=state.journal.filter(e=>e.id!==entry.id);activeEntryId=null;save();renderJournal();notify('Journal entry deleted.',true);};
+$('#delete-entry').onclick=async()=>{const entry=state.journal.find(e=>e.id===activeEntryId);if(!entry)return;if(!await formDialog({title:'Delete this journal entry?',description:`${entry.date} · ${entry.title||'Untitled entry'}`,confirm:true,submit:'Delete entry'}))return;undoEntry=structuredClone(entry);undoAccounts=null;undoMatchup=null;state.journal=state.journal.filter(e=>e.id!==entry.id);activeEntryId=null;save();renderJournal();notify('Journal entry deleted.',true);};
 function renderNotePlacement(){
   const played=state.accounts.filter(a=>a.champions.includes(selectedChampion));$('#played-on').textContent=played.length?`Played on: ${played.map(a=>a.name).join(' · ')}`:'Not placed on an account yet.';
   const rankedBox=$('#notes-ranked'),total=championRankedStats(state,selectedChampion);rankedBox.replaceChildren();rankedBox.hidden=!total.games;
@@ -173,16 +175,72 @@ function renderNotePlacement(){
   $('#note-account').disabled=!available.length;$('#note-add').disabled=!available.length;
   if(!available.length){const o=el('option','',state.accounts.length?'Already on every account':'Create an account first');$('#note-account').append(o);}
 }
-function openNotes(id){
-  if(noteTimer)save();selectedChampion=id;const c=champions.get(id)||{name:id,title:'',image:''},profile=$('#notes-lolalytics');profile.href=lolalyticsUrl(id);profile.title=`Open ${c.name} on LoLalytics`;profile.setAttribute('aria-label',profile.title);$('#notes-title').textContent=c.name;$('#notes-subtitle').textContent=c.title;$('#notes-portrait').src=c.image||'/assets/champions/JarvanIV.png';$('#notes-portrait').hidden=!c.image;$('#notes-text').value=state.notes[id]||'';$('#notes-status').textContent=saveBlocked?'Saving paused':dirty?'Not saved':'Saved';$('#note-length').textContent=`${$('#notes-text').value.length.toLocaleString()} characters`;renderNotePlacement();$('#notes-dialog').showModal();$('#notes-text').focus();$('#notes-text').setSelectionRange(0,0);$('#notes-text').scrollTop=0;
+function renderNotes(){
+  if(!selectedChampion)return;
+  const c=champions.get(selectedChampion)||{name:selectedChampion,title:'',image:''},profile=$('#notes-lolalytics');
+  profile.href=lolalyticsUrl(selectedChampion);profile.title=`Open ${c.name} on LoLalytics`;profile.setAttribute('aria-label',profile.title);
+  $('#notes-title').textContent=c.name;$('#notes-subtitle').textContent=c.title;$('#notes-portrait').src=c.image||'/assets/champions/JarvanIV.png';$('#notes-portrait').hidden=!c.image;
+  const matchups=state.matchupNotes[selectedChampion]||{};
+  if(selectedOpponent&&!Object.hasOwn(matchups,selectedOpponent)){selectedOpponent=null;history.replaceState(null,'',`#/champion/${encodeURIComponent(selectedChampion)}`);}
+  document.title=`${c.name}${selectedOpponent?' vs. '+nameOf(selectedOpponent):' notes'} · Champion Board`;
+  const list=$('#matchup-notes-list');list.replaceChildren();
+  const general=button('General notes',()=>openNotes(selectedChampion),`Open ${c.name} general notes`);general.className='notebook-tab';if(!selectedOpponent)general.setAttribute('aria-current','page');list.append(general);
+  for(const opponent of Object.keys(matchups).sort((a,b)=>nameOf(a).localeCompare(nameOf(b)))){
+    const b=button(`vs. ${nameOf(opponent)}`,()=>openNotes(selectedChampion,opponent),`Open ${c.name} vs. ${nameOf(opponent)} notes`);b.className='notebook-tab';if(selectedOpponent===opponent)b.setAttribute('aria-current','page');list.append(b);
+  }
+  $('#matchup-empty').hidden=Object.keys(matchups).length>0;
+  $('#notebook-title').textContent=selectedOpponent?`${c.name} vs. ${nameOf(selectedOpponent)}`:'General notes';
+  $('#notes-label').textContent=selectedOpponent?'Matchup notes':'Champion notes';
+  $('#notes-text').placeholder=selectedOpponent?'Trading patterns, cooldowns, lane decisions, reminders…':'Champion mechanics, build experiments, reminders…';
+  $('#notes-text').value=selectedOpponent?matchups[selectedOpponent]:state.notes[selectedChampion]||'';
+  $('#delete-matchup').hidden=!selectedOpponent;
+  $('#notes-status').textContent=saveBlocked?'Saving paused':dirty?'Not saved':'Saved';$('#note-length').textContent=`${$('#notes-text').value.length.toLocaleString()} characters`;
+  $('#close-notes').textContent=notesReturnView==='library'?'← Champion library':'← Account board';renderNotePlacement();
 }
-$('#notes-text').addEventListener('input',()=>{state.notes[selectedChampion]=$('#notes-text').value;dirty=true;$('#save-status').textContent='Saving…';$('#notes-status').textContent='Saving…';$('#note-length').textContent=`${$('#notes-text').value.length.toLocaleString()} characters`;clearTimeout(noteTimer);noteTimer=setTimeout(save,400);});
-$('#close-notes').onclick=()=>$('#notes-dialog').close();$('#notes-dialog').addEventListener('close',()=>{save();renderBoard();renderTray();selectedChampion=null;});
+function showNotes(id,opponent=null){
+  if(dirty)save();if(activeView!=='notes')notesReturnView=activeView==='library'?'library':'account';
+  const changed=selectedChampion!==id||activeView!=='notes';selectedChampion=id;selectedOpponent=opponent;activeView='notes';renderBoard();renderNotes();if(changed)$('#notes-page').scrollIntoView({block:'start'});
+  $('#notebook-title').focus({preventScroll:true});
+}
+function openNotes(id,opponent=null){
+  const hash=`#/champion/${encodeURIComponent(id)}${opponent?'/matchup/'+encodeURIComponent(opponent):''}`;
+  if(location.hash!==hash)history.pushState(null,'',hash);showNotes(id,opponent);
+}
+function readNotesRoute(){
+  const match=location.hash.match(/^#\/champion\/([A-Za-z0-9_-]+)(?:\/matchup\/([A-Za-z0-9_-]+))?$/);
+  if(match&&(champions.has(match[1])||Object.hasOwn(state.notes,match[1])||Object.hasOwn(state.matchupNotes,match[1])||state.accounts.some(a=>a.champions.includes(match[1]))))showNotes(match[1],match[2]||null);
+  else if(activeView==='notes'){switchView(notesReturnView);document.title='Champion Board';}
+}
+window.addEventListener('hashchange',readNotesRoute);
+$('#notes-text').addEventListener('input',()=>{
+  if(!selectedChampion)return;
+  if(selectedOpponent)state.matchupNotes[selectedChampion][selectedOpponent]=$('#notes-text').value;else state.notes[selectedChampion]=$('#notes-text').value;
+  dirty=true;$('#save-status').textContent='Saving…';$('#notes-status').textContent='Saving…';$('#note-length').textContent=`${$('#notes-text').value.length.toLocaleString()} characters`;clearTimeout(noteTimer);noteTimer=setTimeout(save,400);
+});
+$('#close-notes').onclick=()=>{const id=selectedChampion;history.pushState(null,'',location.pathname+location.search);switchView(notesReturnView);document.title='Champion Board';document.querySelector(`#${notesReturnView==='library'?'champion-tray':'accounts'} .champ-card[data-champion="${id}"] .champ-name`)?.focus({preventScroll:true});};
+function renderMatchupPicker(){
+  const query=folded($('#matchup-search').value),alias={j4:'JarvanIV',kha:'Khazix',wukong:'MonkeyKing',nunu:'Nunu',reksai:'RekSai'};
+  const results=(catalog?.champions||[]).filter(c=>c.id!==selectedChampion&&(!query||folded(c.name).includes(query)||folded(c.id).includes(query)||alias[query]===c.id));
+  const list=$('#matchup-picker-list');list.replaceChildren();
+  for(const c of results){const exists=Object.hasOwn(state.matchupNotes[selectedChampion]||{},c.id),b=button('',()=>{
+    if(dirty)save();state.matchupNotes[selectedChampion]??={};if(!Object.hasOwn(state.matchupNotes[selectedChampion],c.id)){state.matchupNotes[selectedChampion][c.id]='';save();}
+    $('#matchup-dialog').close();openNotes(selectedChampion,c.id);$('#notes-text').focus();
+  },`${exists?'Open':'Add'} ${nameOf(selectedChampion)} vs. ${c.name} matchup`);b.className='matchup-choice';b.append(el('span','',c.name),el('span','optional',exists?'Open notes':'Add matchup'));list.append(b);}
+  if(!results.length)list.append(el('p','hint','No champions match that search.'));
+}
+$('#add-matchup').onclick=()=>{$('#matchup-picker-title').textContent=`Add a ${nameOf(selectedChampion)} matchup`;$('#matchup-search').value='';renderMatchupPicker();$('#matchup-dialog').showModal();$('#matchup-search').focus();};
+$('#matchup-search').addEventListener('input',renderMatchupPicker);
+$('#close-matchup-picker').onclick=()=>$('#matchup-dialog').close();
+$('#delete-matchup').onclick=async()=>{
+  const champion=selectedChampion,opponent=selectedOpponent;if(!opponent)return;
+  if(!await formDialog({title:`Delete ${nameOf(champion)} vs. ${nameOf(opponent)} notes?`,description:'You can restore this matchup with Undo.',confirm:true,submit:'Delete matchup'}))return;
+  if(dirty)save();undoAccounts=null;undoEntry=null;undoMatchup={champion,opponent,note:state.matchupNotes[champion][opponent]};delete state.matchupNotes[champion][opponent];if(!Object.keys(state.matchupNotes[champion]).length)delete state.matchupNotes[champion];save();openNotes(champion);renderTray();notify('Matchup notes deleted.',true);
+};
 $('#note-add').onclick=()=>addToAccount(selectedChampion,$('#note-account').value);
 $('#search').addEventListener('input',renderTray);
 $('#new-account').onclick=newAccount;
 $('#dismiss-toast').onclick=()=>$('#toast').hidden=true;
-$('#undo').onclick=()=>{if(undoEntry){if(!state.journal.some(e=>e.id===undoEntry.id))state.journal.unshift(undoEntry);activeEntryId=undoEntry.id;undoEntry=null;save();renderJournal();notify('Journal entry restored.');return;}if(!undoAccounts)return;const previous=undoAccounts;undoAccounts=null;state={...state,accounts:previous};save();renderBoard();renderTray();if(selectedChampion)renderNotePlacement();notify('Placement change undone.');};
+$('#undo').onclick=()=>{if(undoMatchup){const {champion,opponent,note}=undoMatchup;undoMatchup=null;state.matchupNotes[champion]??={};if(Object.hasOwn(state.matchupNotes[champion],opponent))return notify('Matchup already exists. Your current notes were kept.');state.matchupNotes[champion][opponent]=note;save();openNotes(champion,opponent);renderTray();notify('Matchup notes restored.');return;}if(undoEntry){if(!state.journal.some(e=>e.id===undoEntry.id))state.journal.unshift(undoEntry);activeEntryId=undoEntry.id;undoEntry=null;save();renderJournal();notify('Journal entry restored.');return;}if(!undoAccounts)return;const previous=undoAccounts;undoAccounts=null;state={...state,accounts:previous};save();renderBoard();renderTray();if(selectedChampion)renderNotePlacement();notify('Placement change undone.');};
 async function refreshRankedStatus(announce=false){
   clearTimeout(rankedPoll);
   try{
@@ -202,8 +260,8 @@ $('#download-backup').onclick=()=>{const blob=new Blob([$('#backup-text').value]
 $('#import').onclick=()=>{$('#settings-dialog').close();$('#import-file').click();};
 $('#import-file').onchange=async()=>{
   const file=$('#import-file').files[0];$('#import-file').value='';if(!file)return;
-  try {if(file.size>10*1024*1024)throw new Error('Backup is too large (maximum 10 MB).');const imported=validateState(JSON.parse(await file.text()));if(!await formDialog({title:'Replace this board?',description:`Restore ${imported.accounts.length} accounts and ${Object.keys(imported.notes).length} notebooks and ${imported.journal.length} journal entries from this backup. Export your current board first if you want to keep it.`,confirm:true,submit:'Restore backup'}))return;
-    clearTimeout(noteTimer);localStorage.setItem(STORAGE_KEY,JSON.stringify(imported));state=imported;saveBlocked=false;undoAccounts=null;undoEntry=null;save();renderBoard();renderTray();renderJournal();notify('Backup restored.');
+  try {if(file.size>10*1024*1024)throw new Error('Backup is too large (maximum 10 MB).');const imported=validateState(JSON.parse(await file.text()));const matchupCount=Object.values(imported.matchupNotes).reduce((count,opponents)=>count+Object.keys(opponents).length,0);if(!await formDialog({title:'Replace this board?',description:`Restore ${imported.accounts.length} accounts, ${Object.keys(imported.notes).length} champion notebooks, ${matchupCount} matchup notebook${matchupCount===1?'':'s'}, and ${imported.journal.length} journal entries from this backup. Export your current board first if you want to keep it.`,confirm:true,submit:'Restore backup'}))return;
+    clearTimeout(noteTimer);localStorage.setItem(STORAGE_KEY,JSON.stringify(imported));state=imported;saveBlocked=false;undoAccounts=null;undoEntry=null;undoMatchup=null;save();renderBoard();renderTray();renderJournal();if(selectedChampion)renderNotes();notify('Backup restored.');
   }catch(e){notify(`Import failed: ${e.message}`);}
 };
 $('#refresh-catalog').onclick=async()=>{const b=$('#refresh-catalog');b.disabled=true;b.textContent='Refreshing…';try{const r=await fetch('/api/catalog/refresh',{method:'POST',headers:{'X-Champion-Board':'refresh'}});const next=await r.json();if(!r.ok)throw new Error(next.error);setCatalog(next);notify(`Roster refreshed: ${catalog.champions.length} champions.`);}catch(e){notify(e.message||'Refresh failed. Existing roster kept.');}finally{b.disabled=false;b.textContent='Refresh roster';}};
@@ -228,8 +286,9 @@ document.querySelector('.workspace').addEventListener('drop',e=>{
 });
 window.addEventListener('beforeunload',e=>{if(dirty&&!save()){e.preventDefault();e.returnValue='';}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&dirty)save();});
-window.addEventListener('storage',e=>{if(e.key!==STORAGE_KEY)return;undoAccounts=null;undoEntry=null;$('#undo').hidden=true;if(dirty){saveBlocked=true;banner('This board changed in another tab. Export your current notes before reloading; saving is paused to prevent overwriting the other tab.');$('#save-status').textContent='Saving paused';return;}try{if(!e.newValue)throw new Error();state=validateState(JSON.parse(e.newValue));if(selectedChampion){$('#notes-text').value=state.notes[selectedChampion]||'';$('#note-length').textContent=`${$('#notes-text').value.length.toLocaleString()} characters`;renderNotePlacement();}renderBoard();renderTray();renderJournal();notify('Board updated from another tab.');}catch{saveBlocked=true;banner('Saved data changed unexpectedly. Reload or restore a backup before making further changes.');}});
+window.addEventListener('storage',e=>{if(e.key!==STORAGE_KEY)return;undoAccounts=null;undoEntry=null;undoMatchup=null;$('#undo').hidden=true;if(dirty){saveBlocked=true;banner('This board changed in another tab. Export your current notes before reloading; saving is paused to prevent overwriting the other tab.');$('#save-status').textContent='Saving paused';$('#notes-status').textContent='Saving paused';return;}try{if(!e.newValue)throw new Error();state=validateState(JSON.parse(e.newValue));if(selectedChampion)renderNotes();renderBoard();renderTray();renderJournal();notify('Board updated from another tab.');}catch{saveBlocked=true;banner('Saved data changed unexpectedly. Reload or restore a backup before making further changes.');}});
 try{const r=await fetch('/local-account-profiles.json');if(r.ok){const local=await r.json(),next=structuredClone(state);let changed=false;for(const profile of local.profiles||[]){if(!validOpggUrl(profile.url))continue;const account=next.accounts.find(a=>!a.opggUrl&&a.name.toLowerCase()===String(profile.accountName||'').toLowerCase())||next.accounts[profile.index];if(account&&!account.opggUrl){account.opggUrl=profile.url;changed=true;}}if(changed){state=validateState(next);save();}}}catch{/* Optional local-only account links are absent on a fresh checkout. */}
 await refreshRankedStatus();
 try{const r=await fetch('/api/catalog');if(!r.ok)throw new Error();setCatalog(await r.json());if(!saveBlocked)save();else $('#save-status').textContent='Saving paused';}
 catch{banner('The champion roster could not load. Restart the local launcher and reload this page.');renderBoard();}
+readNotesRoute();

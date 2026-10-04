@@ -55,7 +55,7 @@ export function mergeRankedHistories(...histories){
   for(const value of histories){if(!value)continue;let clean;try{clean=validateRankedHistory(value);}catch{continue;}for(const [accountId,incoming] of Object.entries(clean.accounts)){const current=merged.accounts[accountId];if(!current||current.puuid!==incoming.puuid){if(!current||Date.parse(incoming.updatedAt||0)>=Date.parse(current.updatedAt||0))merged.accounts[accountId]=structuredClone(incoming);continue;}current.matches={...current.matches,...incoming.matches};if(Date.parse(incoming.updatedAt||0)>=Date.parse(current.updatedAt||0))Object.assign(current,{riotId:incoming.riotId,region:incoming.region,updatedAt:incoming.updatedAt});}}
   return merged;
 }
-export function initialState() { return { schemaVersion: 3, accounts: [], notes: { ...SEEDS }, journal: [], rankedHistory: emptyRankedHistory() }; }
+export function initialState() { return { schemaVersion: 4, accounts: [], notes: { ...SEEDS }, matchupNotes: {}, journal: [], rankedHistory: emptyRankedHistory() }; }
 export function localDate(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
 export function validDate(value) { return typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value+'T12:00:00Z')) && new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value; }
 export function groupChampions(account) { return [...(account.roleOrder||ROLES),'Unassigned'].map(role=>({role,champions:account.champions.filter(id=>(account.championDetails?.[id]?.role||'Unassigned')===role)})); }
@@ -73,10 +73,10 @@ export function persistState(storage, state) {
   catch { return { saved:false, message:'Browser storage is unavailable or full. Your current changes are still on screen. Export a backup before closing this page.' }; }
 }
 export function validateState(raw) {
-  const fail = () => { throw new Error('This file is not a valid Champion Board backup (versions 1 through 3 are supported).'); };
+  const fail = () => { throw new Error('This file is not a valid Champion Board backup (versions 1 through 4 are supported).'); };
   const record = x => x !== null && typeof x === 'object' && !Array.isArray(x);
   const id = x => typeof x === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(x) && !['__proto__','constructor','prototype'].includes(x);
-  if (!record(raw) || ![1,2,3].includes(raw.schemaVersion) || !Array.isArray(raw.accounts) || raw.accounts.length > 200 || !record(raw.notes)) fail();
+  if (!record(raw) || ![1,2,3,4].includes(raw.schemaVersion) || !Array.isArray(raw.accounts) || raw.accounts.length > 200 || !record(raw.notes)) fail();
   const seen = new Set();
   const accounts = raw.accounts.map(a => {
     if (!record(a) || !id(a.id) || seen.has(a.id) || typeof a.name !== 'string' || !a.name.trim() || a.name.length > 80 || !Array.isArray(a.champions) || a.champions.length > 1000 || a.champions.some(c => !id(c)) || new Set(a.champions).size !== a.champions.length) fail();
@@ -96,6 +96,16 @@ export function validateState(raw) {
   if (Object.keys(raw.notes).length > 2000) fail();
   const notes = {};
   for (const [key,value] of Object.entries(raw.notes)) { if (!id(key) || typeof value !== 'string' || value.length > 100000) fail(); notes[key] = value; }
+  const rawMatchups=raw.matchupNotes===undefined&&raw.schemaVersion<4?{}:raw.matchupNotes,matchupNotes={};let matchupCount=0;
+  if(!record(rawMatchups)||Object.keys(rawMatchups).length>2000)fail();
+  for(const [champion,opponents]of Object.entries(rawMatchups)){
+    if(!id(champion)||!record(opponents)||Object.keys(opponents).length>2000)fail();
+    matchupNotes[champion]={};
+    for(const [opponent,note]of Object.entries(opponents)){
+      if(!id(opponent)||champion===opponent||typeof note!=='string'||note.length>100000||++matchupCount>10000)fail();
+      matchupNotes[champion][opponent]=note;
+    }
+  }
   const journal=raw.journal??(raw.schemaVersion===1?[]:null);
   if(!Array.isArray(journal)||journal.length>10000)fail();
   const entries=new Set();
@@ -105,7 +115,7 @@ export function validateState(raw) {
   });
   let rankedHistory;
   try{rankedHistory=raw.rankedHistory===undefined&&raw.schemaVersion<3?emptyRankedHistory():validateRankedHistory(raw.rankedHistory);}catch{fail();}
-  return { schemaVersion: 3, accounts, notes, journal:cleanJournal, rankedHistory };
+  return { schemaVersion: 4, accounts, notes, matchupNotes, journal:cleanJournal, rankedHistory };
 }
 export function placeInRole(state, championId, targetId, role, sourceId=null, beforeId=null) {
   if(![...ROLES,'Unassigned'].includes(role))throw new Error('Choose a valid role.');
