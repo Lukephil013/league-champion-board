@@ -75,6 +75,7 @@ async function placementAction(championId,account){
   const choices=[{value:'practice',label:outOfPractice?'Mark back in practice':'Mark out of practice'},{value:'role',label:'Set role'},{value:'note',label:'Edit placement reminder'},...others.map(a=>({value:`move:${a.id}`,label:`Move to ${a.name}`})),...others.map(a=>({value:`copy:${a.id}`,label:`Copy to ${a.name}`})),...(index>0?[{value:'earlier',label:'Move earlier in this role'}]:[]),...(index<roleGroup.length-1?[{value:'later',label:'Move later in this role'}]:[]),{value:'remove',label:`Remove from ${account.name}`}];
   const action=await formDialog({title:nameOf(championId),label:'Placement action',choices,submit:'Apply'});if(!action)return;
   if(action==='practice'){togglePracticeStatus(championId,account.id);return;}
+  if(action==='remove'){removePlacement(championId,account.id);return;}
   if(action==='role'||action==='note'){
     const detail=account.championDetails?.[championId]||{role:'',note:''};
     const value=await formDialog(action==='role'?{title:`${nameOf(championId)} role`,label:'Role on this account',choices:[{value:'none',label:'Unassigned'},...ROLES.map(role=>({value:role,label:role}))]}:{title:'Placement reminder',label:'Conditional pick or reminder',value:detail.note,optional:true,maxLength:300});
@@ -82,7 +83,11 @@ async function placementAction(championId,account){
     return;
   }
   if(action.startsWith('move:')||action.startsWith('copy:')){const [kind,target]=action.split(':');try{commit(placeChampion(state,championId,target,account.id,kind==='copy'),`${nameOf(championId)} ${kind==='copy'?'copied':'moved'}.`);}catch(e){notify(e.message);}}
-  else changeAccounts(accounts=>{const a=accounts.find(a=>a.id===account.id);if(action==='remove'){a.champions=a.champions.filter(c=>c!==championId);if(a.championDetails)delete a.championDetails[championId];}else{const reordered=shift(roleGroup,championId,action==='earlier'?-1:1);let i=0;a.champions=a.champions.map(id=>roleGroup.includes(id)?reordered[i++]:id);}},action==='remove'?'Placement removed. Notes kept.':'Champions reordered.');
+  else changeAccounts(accounts=>{const a=accounts.find(a=>a.id===account.id),reordered=shift(roleGroup,championId,action==='earlier'?-1:1);let i=0;a.champions=a.champions.map(id=>roleGroup.includes(id)?reordered[i++]:id);},'Champions reordered.');
+}
+function removePlacement(championId,accountId){
+  if(!state.accounts.find(a=>a.id===accountId)?.champions.includes(championId))return;
+  changeAccounts(accounts=>{const account=accounts.find(a=>a.id===accountId);account.champions=account.champions.filter(id=>id!==championId);if(account.championDetails)delete account.championDetails[championId];},`${nameOf(championId)} removed from this pool. Notes kept.`);
 }
 function togglePracticeStatus(championId,accountId){
   const account=state.accounts.find(a=>a.id===accountId);if(!account?.champions.includes(championId))return;
@@ -109,10 +114,15 @@ function card(c,account=null){
   if(detail?.role)item.append(el('span','role-badge',detail.role));
   if(detail?.note)item.append(el('p','placement-reminder',detail.note));
   if(account){
-    portrait.title+=' · Ctrl + right-click to toggle practice status';portrait.setAttribute('aria-label',portrait.title);
+    portrait.title+=' · Ctrl + right-click to toggle practice status · Ctrl + middle-click to remove from this pool';portrait.setAttribute('aria-label',portrait.title);
     item.addEventListener('contextmenu',event=>{
       if(!event.ctrlKey||event.button!==2)return;
       event.preventDefault();event.stopPropagation();togglePracticeStatus(c.id,account.id);
+    });
+    item.addEventListener('mousedown',event=>{if(event.ctrlKey&&event.button===1)event.preventDefault();});
+    item.addEventListener('auxclick',event=>{
+      if(!event.ctrlKey||event.button!==1)return;
+      event.preventDefault();event.stopPropagation();removePlacement(c.id,account.id);
     });
   }
   const actions=el('div','card-actions');
