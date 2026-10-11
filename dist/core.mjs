@@ -4,6 +4,34 @@ export const RANKED_QUEUE_ID = 420;
 export function validOpggUrl(value) {
   try {const u=new URL(value);const parts=u.pathname.split('/').filter(Boolean);return u.protocol==='https:'&&u.hostname==='op.gg'&&parts.length===4&&parts[0]==='lol'&&parts[1]==='summoners'&&/^[a-z0-9]+$/i.test(parts[2])&&parts[3].length>2;} catch{return false;}
 }
+export function accountProfiles(account) {
+  return account?.opggProfiles ?? (account?.opggUrl ? [{id:account.id,url:account.opggUrl}] : []);
+}
+export function setAccountProfiles(account, profiles) {
+  account.opggProfiles=profiles.map(profile=>({...profile}));
+  if(profiles.length)account.opggUrl=profiles[0].url;else delete account.opggUrl;
+}
+export function accountRankedIds(account) { return [...new Set([account.id,...accountProfiles(account).map(profile=>profile.id)])]; }
+export function mergeAccounts(state,targetId,sourceId) {
+  if(targetId===sourceId)return state;
+  const next=structuredClone(state),target=next.accounts.find(account=>account.id===targetId),source=next.accounts.find(account=>account.id===sourceId);
+  if(!target||!source)return state;
+  for(const champion of source.champions){
+    if(!target.champions.includes(champion))target.champions.push(champion);
+    if(!target.championDetails?.[champion]&&source.championDetails?.[champion]){target.championDetails??={};target.championDetails[champion]=structuredClone(source.championDetails[champion]);}
+  }
+  const profiles=[...accountProfiles(target)];
+  for(const profile of accountProfiles(source))if(!profiles.some(existing=>existing.url===profile.url))profiles.push(profile);
+  if(profiles.length>10)throw new Error('A pool can have up to 10 OP.GG profiles.');
+  if(profiles.length)setAccountProfiles(target,profiles);
+  if(source.focus&&source.focus!==target.focus){
+    const focus=[target.focus,source.focus].filter(Boolean).join('\n\n');
+    if(focus.length>1000)throw new Error('Shorten the account focus text before combining these pools.');
+    target.focus=focus;
+  }
+  next.accounts=next.accounts.filter(account=>account.id!==sourceId);
+  return next;
+}
 export function lolalyticsUrl(championId) {
   if(typeof championId!=='string')throw new Error('Invalid champion ID.');
   const slug=championId==='MonkeyKing'?'wukong':championId.toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -42,13 +70,16 @@ export function validateRankedHistory(value) {
 export function championRankedStats(state,championId,accountId=null){
   let games=0,wins=0,coverageFrom=null,coverageTo=null;
   const accounts=state.rankedHistory?.accounts||{};
-  for(const [id,account] of Object.entries(accounts)){if(accountId&&id!==accountId)continue;for(const match of Object.values(account.matches||{})){if(match.championId!==championId)continue;games++;if(match.win)wins++;if(!coverageFrom||match.gameCreation<coverageFrom)coverageFrom=match.gameCreation;if(!coverageTo||match.gameCreation>coverageTo)coverageTo=match.gameCreation;}}
+  const selected=accountId===null?null:new Set(Array.isArray(accountId)?accountId:[accountId]);
+  for(const [id,account] of Object.entries(accounts)){if(selected&&!selected.has(id))continue;for(const match of Object.values(account.matches||{})){if(match.championId!==championId)continue;games++;if(match.win)wins++;if(!coverageFrom||match.gameCreation<coverageFrom)coverageFrom=match.gameCreation;if(!coverageTo||match.gameCreation>coverageTo)coverageTo=match.gameCreation;}}
   return {games,wins,losses:games-wins,coverageFrom,coverageTo};
 }
 export function accountRankedSummary(state,accountId){
-  const account=state.rankedHistory?.accounts?.[accountId],champions={};let games=0,coverageFrom=null,coverageTo=null;
-  for(const match of Object.values(account?.matches||{})){games++;const stats=champions[match.championId]||={games:0,wins:0,losses:0};stats.games++;if(match.win)stats.wins++;else stats.losses++;if(!coverageFrom||match.gameCreation<coverageFrom)coverageFrom=match.gameCreation;if(!coverageTo||match.gameCreation>coverageTo)coverageTo=match.gameCreation;}
-  return {games,champions,coverageFrom,coverageTo,updatedAt:account?.updatedAt||''};
+  const ids=[...new Set(Array.isArray(accountId)?accountId:[accountId])],champions={};let games=0,coverageFrom=null,coverageTo=null,updatedAt='';
+  for(const id of ids){const account=state.rankedHistory?.accounts?.[id];if(account?.updatedAt&&(!updatedAt||Date.parse(account.updatedAt)>Date.parse(updatedAt)))updatedAt=account.updatedAt;
+    for(const match of Object.values(account?.matches||{})){games++;const stats=champions[match.championId]||={games:0,wins:0,losses:0};stats.games++;if(match.win)stats.wins++;else stats.losses++;if(!coverageFrom||match.gameCreation<coverageFrom)coverageFrom=match.gameCreation;if(!coverageTo||match.gameCreation>coverageTo)coverageTo=match.gameCreation;}
+  }
+  return {games,champions,coverageFrom,coverageTo,updatedAt};
 }
 export function mergeRankedHistories(...histories){
   const merged=emptyRankedHistory();
@@ -84,6 +115,11 @@ export function validateState(raw) {
     if(a.roleOrder!==undefined){if(!Array.isArray(a.roleOrder)||a.roleOrder.length!==ROLES.length||new Set(a.roleOrder).size!==ROLES.length||a.roleOrder.some(role=>!ROLES.includes(role)))fail();account.roleOrder=[...a.roleOrder];}
     if (a.focus !== undefined) { if(typeof a.focus !== 'string' || a.focus.length > 1000) fail(); account.focus=a.focus; }
     if (a.opggUrl !== undefined) { if(typeof a.opggUrl!=='string'||!validOpggUrl(a.opggUrl)||a.opggUrl.length>500)fail(); account.opggUrl=a.opggUrl; }
+    if(a.opggProfiles!==undefined){
+      if(!Array.isArray(a.opggProfiles)||a.opggProfiles.length>10)fail();const profileIds=new Set(),urls=new Set();
+      account.opggProfiles=a.opggProfiles.map(profile=>{if(!record(profile)||!id(profile.id)||typeof profile.url!=='string'||profile.url.length>500||!validOpggUrl(profile.url)||profileIds.has(profile.id)||urls.has(profile.url))fail();profileIds.add(profile.id);urls.add(profile.url);return {id:profile.id,url:profile.url};});
+      if(account.opggProfiles.length){if(account.opggUrl&&account.opggUrl!==account.opggProfiles[0].url)fail();account.opggUrl=account.opggProfiles[0].url;}else if(account.opggUrl)fail();
+    }
     if (a.championDetails !== undefined) {
       if(!record(a.championDetails))fail(); account.championDetails={};
       for(const [champion,detail] of Object.entries(a.championDetails)) {

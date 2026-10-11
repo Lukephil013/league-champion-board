@@ -1,4 +1,4 @@
-import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, moveRole, placeInRole, localDate, validDate, lolalyticsUrl, validOpggUrl, championRankedStats, accountRankedSummary, mergeRankedHistories } from './core.mjs';
+import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, moveRole, placeInRole, localDate, validDate, lolalyticsUrl, validOpggUrl, accountProfiles, setAccountProfiles, accountRankedIds, mergeAccounts, championRankedStats, accountRankedSummary, mergeRankedHistories } from './core.mjs';
 import { mountAuroraPractice } from './aurora-practice.mjs';
 const $ = s => document.querySelector(s);
 const auroraPractice = mountAuroraPractice($('#practice-view'));
@@ -38,13 +38,28 @@ function formDialog({title,description='',label='',value='',choices=null,submit=
 async function newAccount(){const name=await formDialog({title:'Add an account',label:'Account name',description:'Use your Riot ID or any label that makes sense to you.',submit:'Add account'});if(name){switchView('account');activeAccountId=crypto.randomUUID();changeAccounts(accounts=>accounts.push({id:activeAccountId,name,champions:[],roleOrder:[...ROLES]}),`Added ${name}.`);}}
 async function accountAction(account){
   const index=state.accounts.indexOf(account);
-  const choices=[{value:'rename',label:'Rename account'},{value:'focus',label:'Edit account focus'},{value:'opgg',label:account.opggUrl?'Edit OP.GG profile':'Add OP.GG profile'},...(index>0?[{value:'earlier',label:'Move account earlier'}]:[]),...(index<state.accounts.length-1?[{value:'later',label:'Move account later'}]:[]),{value:'delete',label:'Delete account'}];
+  const choices=[{value:'rename',label:'Rename account'},{value:'focus',label:'Edit account focus'},{value:'opgg',label:accountProfiles(account).length?'Edit OP.GG profiles':'Add OP.GG profile'},...(state.accounts.length>1?[{value:'merge',label:'Merge another account into this pool'}]:[]),...(index>0?[{value:'earlier',label:'Move account earlier'}]:[]),...(index<state.accounts.length-1?[{value:'later',label:'Move account later'}]:[]),{value:'delete',label:'Delete account'}];
   const action=await formDialog({title:account.name,label:'Account action',choices,submit:'Continue'});
   if(action==='rename'){const name=await formDialog({title:'Rename account',label:'Account name',value:account.name});if(name)changeAccounts(accounts=>accounts.find(a=>a.id===account.id).name=name,'Account renamed.');}
   if(action==='focus'){const focus=await formDialog({title:'Account focus',label:'What you focus on here',value:account.focus||'',optional:true,maxLength:1000});if(focus!==null)changeAccounts(accounts=>accounts.find(a=>a.id===account.id).focus=focus,'Account focus saved.');}
-  if(action==='opgg'){const url=await formDialog({title:'OP.GG profile',description:'Paste the complete OP.GG summoner link. Leave it blank to remove the profile.',label:'OP.GG URL',value:account.opggUrl||'',optional:true,maxLength:500,type:'url'});if(url!==null){if(url&&!validOpggUrl(url))return notify('Use a complete https://op.gg/lol/summoners/... profile link.');changeAccounts(accounts=>{const a=accounts.find(a=>a.id===account.id);if(url)a.opggUrl=url;else delete a.opggUrl;},url?'OP.GG profile saved.':'OP.GG profile removed.');}}
+  if(action==='opgg')await editProfiles(account);
+  if(action==='merge'){
+    const sourceId=await formDialog({title:'Combine champion pools',label:'Account to combine',choices:state.accounts.filter(a=>a.id!==account.id).map(a=>({value:a.id,label:a.name})),submit:'Continue'});if(!sourceId)return;
+    const source=state.accounts.find(a=>a.id===sourceId);
+    if(!await formDialog({title:`Combine with ${source.name}?`,description:`Keep one tab for both pools, including their OP.GG links. Existing roles on ${account.name} take priority. Champion notes and journal entries stay unchanged. Undo restores both tabs.`,confirm:true,submit:'Combine pools'}))return;
+    try{commit(mergeAccounts(state,account.id,sourceId),'Pools combined. Notes and OP.GG links kept.');}catch(error){notify(error.message);}
+  }
   if(action==='earlier'||action==='later'){const ids=shift(state.accounts.map(a=>a.id),account.id,action==='earlier'?-1:1);commit({...state,accounts:ids.map(id=>state.accounts.find(a=>a.id===id))},'Accounts reordered.');}
   if(action==='delete'&&await formDialog({title:`Delete ${account.name}?`,description:'This removes the account and its placements. All champion notebooks remain available.',submit:'Delete account',confirm:true}))commit({...state,accounts:state.accounts.filter(a=>a.id!==account.id)},'Account deleted. Champion notes kept.');
+}
+async function editProfiles(account){
+  const profiles=accountProfiles(account).map(profile=>({...profile}));
+  const selected=profiles.length?await formDialog({title:'OP.GG profiles',label:'Profile',choices:[...profiles.map(profile=>({value:profile.id,label:opggLabel(profile.url)})),...(profiles.length<10?[{value:'add',label:'Add another OP.GG profile'}]:[])],submit:'Continue'}):'add';if(!selected)return;
+  const index=profiles.findIndex(profile=>profile.id===selected),url=await formDialog({title:'OP.GG profile',description:'Paste the complete OP.GG summoner link. Leave it blank to remove this profile.',label:'OP.GG URL',value:profiles[index]?.url||'',optional:true,maxLength:500,type:'url'});if(url===null)return;
+  if(url&&!validOpggUrl(url))return notify('Use a complete https://op.gg/lol/summoners/... profile link.');
+  if(url&&profiles.some((profile,i)=>i!==index&&profile.url===url))return notify('That OP.GG profile is already linked.');
+  if(index>=0){if(url)profiles[index].url=url;else profiles.splice(index,1);}else if(url)profiles.push({id:profiles.length?crypto.randomUUID():account.id,url});else return;
+  changeAccounts(accounts=>setAccountProfiles(accounts.find(a=>a.id===account.id),profiles),url?'OP.GG profile saved.':'OP.GG profile removed.');
 }
 async function addToAccount(championId,targetId=null){
   if(!state.accounts.length){await newAccount();if(!state.accounts.length)return;}
@@ -74,7 +89,7 @@ function card(c,account=null){
   if(!c.image)img.hidden=true;
   portrait.append(img);
   const open=button(c.name,()=>openNotes(c.id),`Open ${c.name} notes`);open.className='champ-name champ-notes-open';item.append(portrait,open);
-  const ranked=championRankedStats(state,c.id,account?.id||null);
+  const ranked=championRankedStats(state,c.id,account?accountRankedIds(account):null);
   if(ranked.games){const count=el('span','ranked-count',`${ranked.games.toLocaleString()} ranked`);count.title=rankedCoverage(ranked);item.append(count);}
   const detail=account?.championDetails?.[c.id];
   if(detail?.role)item.append(el('span','role-badge',detail.role));
@@ -118,8 +133,10 @@ function renderBoard(){
   $('#account-view').hidden=activeView!=='account';$('#journal-view').hidden=activeView!=='journal';$('#library-view').hidden=activeView!=='library';
   $('#practice-view').hidden=activeView!=='practice';auroraPractice.setActive(activeView==='practice');
   $('#notes-page').hidden=activeView!=='notes';
-  const a=state.accounts.find(a=>a.id===activeAccountId),profile=$('#selected-opgg'),rankedPanel=$('#selected-ranked');$('#accounts-title').textContent=a?.name||'Your accounts';$('#selected-focus').textContent=a?.focus||'';$('#selected-focus').hidden=!a?.focus;$('#manage-selected').hidden=!a;$('#open-library').hidden=!a;profile.hidden=!a?.opggUrl;if(a?.opggUrl){$('#selected-opgg-id').textContent=opggLabel(a.opggUrl);$('#selected-opgg-link').href=a.opggUrl;$('#selected-opgg-link').setAttribute('aria-label',`Open ${a.name} on OP.GG`);}
-  const accountStats=a?accountRankedSummary(state,a.id):null;rankedPanel.hidden=!accountStats?.games;if(accountStats?.games){rankedPanel.textContent=`Ranked Solo/Duo · ${rankedCoverage({...accountStats,wins:Object.values(accountStats.champions).reduce((sum,c)=>sum+c.wins,0),losses:Object.values(accountStats.champions).reduce((sum,c)=>sum+c.losses,0)})}`;}
+  const a=state.accounts.find(a=>a.id===activeAccountId),profile=$('#selected-opgg'),rankedPanel=$('#selected-ranked');$('#accounts-title').textContent=a?.name||'Your accounts';$('#selected-focus').textContent=a?.focus||'';$('#selected-focus').hidden=!a?.focus;$('#manage-selected').hidden=!a;$('#open-library').hidden=!a;
+  const profiles=accountProfiles(a);profile.hidden=!profiles.length;profile.replaceChildren();
+  for(const linked of profiles){const link=el('a','',`${opggLabel(linked.url)} · OP.GG ↗`);link.href=linked.url;link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label',`Open ${opggLabel(linked.url)} on OP.GG`);profile.append(link);}
+  const accountStats=a?accountRankedSummary(state,accountRankedIds(a)):null;rankedPanel.hidden=!accountStats?.games;if(accountStats?.games){rankedPanel.textContent=`Ranked Solo/Duo · ${rankedCoverage({...accountStats,wins:Object.values(accountStats.champions).reduce((sum,c)=>sum+c.wins,0),losses:Object.values(accountStats.champions).reduce((sum,c)=>sum+c.losses,0)})}`;}
   $('#library-hint').textContent=quickTarget&&a?`Adding to ${a.name}${quickRole?' · '+quickRole:''}. You can also drag onto an account in the sidebar.`:'Add a champion to an account or open its shared notes.';
   const board=$('#accounts');board.replaceChildren();
   if(!a){const empty=el('div','empty-board');empty.append(el('h3','','Make room for your pool.'),el('p','','Add an account, then choose champions for each role.'),button('+ Add your first account',newAccount));board.append(empty);return;}
@@ -170,7 +187,7 @@ $('#delete-entry').onclick=async()=>{const entry=state.journal.find(e=>e.id===ac
 function renderNotePlacement(){
   const played=state.accounts.filter(a=>a.champions.includes(selectedChampion));$('#played-on').textContent=played.length?`Played on: ${played.map(a=>a.name).join(' · ')}`:'Not placed on an account yet.';
   const rankedBox=$('#notes-ranked'),total=championRankedStats(state,selectedChampion);rankedBox.replaceChildren();rankedBox.hidden=!total.games;
-  if(total.games){rankedBox.append(el('strong','',`Ranked Solo/Duo · ${rankedCoverage(total)}`));for(const account of state.accounts){const stats=championRankedStats(state,selectedChampion,account.id);if(stats.games)rankedBox.append(el('span','',`${account.name}: ${stats.games.toLocaleString()} · ${stats.wins.toLocaleString()}W ${stats.losses.toLocaleString()}L`));}}
+  if(total.games){rankedBox.append(el('strong','',`Ranked Solo/Duo · ${rankedCoverage(total)}`));for(const account of state.accounts){const stats=championRankedStats(state,selectedChampion,accountRankedIds(account));if(stats.games)rankedBox.append(el('span','',`${account.name}: ${stats.games.toLocaleString()} · ${stats.wins.toLocaleString()}W ${stats.losses.toLocaleString()}L`));}}
   const available=state.accounts.filter(a=>!a.champions.includes(selectedChampion));$('#note-account').replaceChildren();for(const a of available){const o=el('option','',a.name);o.value=a.id;$('#note-account').append(o);}
   $('#note-account').disabled=!available.length;$('#note-add').disabled=!available.length;
   if(!available.length){const o=el('option','',state.accounts.length?'Already on every account':'Create an account first');$('#note-account').append(o);}
@@ -259,7 +276,7 @@ async function refreshRankedStatus(announce=false){
 $('#settings').onclick=()=>{$('#settings-dialog').showModal();refreshRankedStatus();};
 $('#close-settings').onclick=()=>$('#settings-dialog').close();
 $('#save-riot-key').onclick=async()=>{const key=$('#riot-api-key').value.trim(),button=$('#save-riot-key');if(!key)return notify('Paste a Riot API key first.');button.disabled=true;$('#ranked-status').textContent='Saving key…';try{const response=await fetch('/api/ranked/key',{method:'POST',headers:{'Content-Type':'application/json','X-Champion-Board':'riot-key'},body:JSON.stringify({key})}),payload=await response.json();if(!response.ok)throw new Error(payload.error);$('#riot-api-key').value='';rankedConfigured=true;$('#ranked-status').textContent='API key saved locally.';$('#refresh-ranked').disabled=false;notify('Riot API key saved locally.');}catch(error){$('#ranked-status').textContent=error.message||'Could not save the Riot API key.';}finally{button.disabled=false;}};
-$('#refresh-ranked').onclick=async()=>{const linked=state.accounts.filter(account=>account.opggUrl).map(({id,name,opggUrl})=>({id,name,opggUrl}));if(!linked.length)return notify('Add an OP.GG profile to an account first.');const button=$('#refresh-ranked');button.disabled=true;$('#ranked-status').textContent='Starting Ranked Solo update…';try{const response=await fetch('/api/ranked/refresh',{method:'POST',headers:{'Content-Type':'application/json','X-Champion-Board':'ranked-refresh'},body:JSON.stringify({accounts:linked,existing:state.rankedHistory})}),payload=await response.json();if(!response.ok)throw new Error(payload.error);await refreshRankedStatus(true);}catch(error){$('#ranked-status').textContent=error.message||'Could not start the Ranked Solo update.';button.disabled=!rankedConfigured;}};
+$('#refresh-ranked').onclick=async()=>{const linked=state.accounts.flatMap(account=>accountProfiles(account).map(profile=>({id:profile.id,name:account.name,opggUrl:profile.url})));if(!linked.length)return notify('Add an OP.GG profile to an account first.');const button=$('#refresh-ranked');button.disabled=true;$('#ranked-status').textContent='Starting Ranked Solo update…';try{const response=await fetch('/api/ranked/refresh',{method:'POST',headers:{'Content-Type':'application/json','X-Champion-Board':'ranked-refresh'},body:JSON.stringify({accounts:linked,existing:state.rankedHistory})}),payload=await response.json();if(!response.ok)throw new Error(payload.error);await refreshRankedStatus(true);}catch(error){$('#ranked-status').textContent=error.message||'Could not start the Ranked Solo update.';button.disabled=!rankedConfigured;}};
 $('#export').onclick=()=>{$('#settings-dialog').close();save();$('#backup-text').value=JSON.stringify(state,null,2);$('#backup-dialog').showModal();};
 $('#close-backup').onclick=()=>$('#backup-dialog').close();
 $('#download-backup').onclick=()=>{const blob=new Blob([$('#backup-text').value],{type:'application/json'});const url=URL.createObjectURL(blob),a=el('a');a.href=url;a.download=`league-board-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('Backup download requested.');};

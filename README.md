@@ -25,7 +25,8 @@ The included `PROJECT.md` registers the launcher with a compatible Center projec
 - Notebook URLs can be bookmarked, and browser Back/Forward works between notebooks. Use the page's back button to return to the account board or champion library. **Delete matchup** asks for confirmation; **Undo** restores its text.
 - Removing a placement or an entire account keeps every champion notebook. **Undo** reverses the last account/placement change without rolling back later note edits.
 - Use an account’s **Edit account focus** action to describe its purpose. Champion menus include **Set role** and **Edit placement reminder** for account-specific context such as autofill or tentative picks. Those labels move/copy with the placement; shared notebooks remain unchanged.
-- Use **Manage account → Add OP.GG profile** to attach a complete OP.GG summoner URL. The selected account shows its region, Riot ID, and an **Open OP.GG ↗** link. The profile URL stays in browser storage and follows the account through backup and restore.
+- Use **Manage account → Add OP.GG profile** or **Edit OP.GG profiles** to attach, edit, or remove complete OP.GG summoner URLs. Each pool can show up to 10 profile links at the top; they stay in browser storage and backups.
+- Use **Manage account → Merge another account into this pool** to combine two tabs. Champions are deduplicated, both sets of OP.GG links are retained, and the destination pool keeps its role order and existing placement details. Shared notebooks, journal entries, and each profile's Ranked Solo history remain intact. Confirm the merge; **Undo** restores both tabs. You can rename the combined pool afterward.
 
 The first launch starts with no account assignments and 14 concise notebooks from a jungle-pool discussion. Suggestions are labeled separately from observations; item ideas are experiments, not maintained build recommendations. Edited or cleared notes are never replaced by the starter notes.
 

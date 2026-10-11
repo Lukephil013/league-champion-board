@@ -1,7 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, validateState, placeChampion, shift, persistState, STORAGE_KEY, groupChampions, moveRole, placeInRole, validDate, localDate, lolalyticsUrl, validOpggUrl, championRankedStats, accountRankedSummary, mergeRankedHistories } from '../dist/core.mjs';
+import { initialState, validateState, placeChampion, shift, persistState, STORAGE_KEY, groupChampions, moveRole, placeInRole, validDate, localDate, lolalyticsUrl, validOpggUrl, accountProfiles, setAccountProfiles, accountRankedIds, mergeAccounts, championRankedStats, accountRankedSummary, mergeRankedHistories } from '../dist/core.mjs';
 const fixture=()=>({...initialState(),accounts:[{id:'a',name:'Jungle',champions:['JarvanIV','Gragas']},{id:'b',name:'Practice',champions:[]}]});
+test('combining pools retains profile identities, target roles, notes, journal and history',()=>{
+  const s=fixture();s.accounts[0].opggUrl='https://op.gg/lol/summoners/na/PlayerOne-NA1';s.accounts[0].championDetails={JarvanIV:{role:'Jungle',note:'Keep'}};
+  s.accounts[1].opggUrl='https://op.gg/lol/summoners/na/PlayerTwo-NA1';s.accounts[1].champions=['JarvanIV','Vex'];s.accounts[1].championDetails={JarvanIV:{role:'Top',note:'Different'},Vex:{role:'Mid',note:'Practice'}};
+  s.matchupNotes={Vex:{Yasuo:'Wind wall'}};s.journal=[{id:'entry',date:'2026-10-11',title:'Daily',body:'Keep me'}];
+  s.rankedHistory.accounts.a={riotId:'PlayerOne#NA1',region:'na',puuid:'a',updatedAt:'2026-10-10T00:00:00Z',matches:{NA1_1:{championId:'Vex',win:true,gameCreation:1000}}};
+  s.rankedHistory.accounts.b={riotId:'PlayerTwo#NA1',region:'na',puuid:'b',updatedAt:'2026-10-11T00:00:00Z',matches:{NA1_1:{championId:'Vex',win:false,gameCreation:1000},NA1_2:{championId:'Vex',win:true,gameCreation:2000}}};
+  const before=structuredClone(s),merged=mergeAccounts(s,'a','b');assert.deepEqual(s,before);assert.equal(merged.accounts.length,1);assert.deepEqual(merged.accounts[0].champions,['JarvanIV','Gragas','Vex']);assert.deepEqual(merged.accounts[0].championDetails.JarvanIV,{role:'Jungle',note:'Keep'});assert.deepEqual(merged.accounts[0].championDetails.Vex,{role:'Mid',note:'Practice'});
+  assert.deepEqual(accountProfiles(merged.accounts[0]),[{id:'a',url:s.accounts[0].opggUrl},{id:'b',url:s.accounts[1].opggUrl}]);
+  for(const field of ['notes','matchupNotes','journal','rankedHistory'])assert.deepEqual(merged[field],s[field]);assert.deepEqual(validateState(JSON.parse(JSON.stringify(merged))),merged);
+  const ids=accountRankedIds(merged.accounts[0]);assert.deepEqual(championRankedStats(merged,'Vex',ids),{games:3,wins:2,losses:1,coverageFrom:1000,coverageTo:2000});assert.equal(accountRankedSummary(merged,ids).games,3);assert.equal(accountRankedSummary(merged,ids).updatedAt,'2026-10-11T00:00:00Z');
+  assert.equal(mergeAccounts(s,'a','a'),s);assert.equal(mergeAccounts(s,'a','missing'),s);
+  s.accounts[0].focus='a'.repeat(600);s.accounts[1].focus='b'.repeat(600);assert.throws(()=>mergeAccounts(s,'a','b'),/Shorten/);assert.equal(s.accounts.length,2);
+});
+test('multiple profile links validate, round trip, deduplicate on merge and reject unsafe backups',()=>{
+  const s=fixture(),url='https://op.gg/lol/summoners/na/PlayerOne-NA1';setAccountProfiles(s.accounts[0],[{id:'a',url}]);s.accounts[1].opggUrl=url;
+  assert.equal(accountProfiles(mergeAccounts(s,'a','b').accounts[0]).length,1);
+  for(const profiles of [null,[{id:'a',url:'javascript:alert(1)'}],[{id:'a',url},{id:'a',url:'https://op.gg/lol/summoners/na/PlayerTwo-NA1'}],[{id:'a',url},{id:'b',url}],Array.from({length:11},(_,i)=>({id:'p'+i,url:'https://op.gg/lol/summoners/na/Player'+i+'-NA1'})),[{id:'__proto__',url}]])assert.throws(()=>validateState({...s,accounts:[{...s.accounts[0],opggProfiles:profiles}]}),/valid/);
+  assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))),s);setAccountProfiles(s.accounts[0],[]);assert.equal(s.accounts[0].opggUrl,undefined);assert.deepEqual(accountProfiles(validateState(s).accounts[0]),[]);
+});
 test('LoLalytics links use champion slugs and the Wukong exception',()=>{
  assert.equal(lolalyticsUrl('JarvanIV'),'https://lolalytics.com/lol/jarvaniv/build/');
  assert.equal(lolalyticsUrl('Nunu'),'https://lolalytics.com/lol/nunu/build/');
