@@ -74,7 +74,7 @@ async function placementAction(championId,account){
   const outOfPractice=Boolean(account.championDetails?.[championId]?.outOfPractice);
   const choices=[{value:'practice',label:outOfPractice?'Mark back in practice':'Mark out of practice'},{value:'role',label:'Set role'},{value:'note',label:'Edit placement reminder'},...others.map(a=>({value:`move:${a.id}`,label:`Move to ${a.name}`})),...others.map(a=>({value:`copy:${a.id}`,label:`Copy to ${a.name}`})),...(index>0?[{value:'earlier',label:'Move earlier in this role'}]:[]),...(index<roleGroup.length-1?[{value:'later',label:'Move later in this role'}]:[]),{value:'remove',label:`Remove from ${account.name}`}];
   const action=await formDialog({title:nameOf(championId),label:'Placement action',choices,submit:'Apply'});if(!action)return;
-  if(action==='practice'){commit(setOutOfPractice(state,account.id,championId,!outOfPractice),outOfPractice?`${nameOf(championId)} is back in practice.`:`${nameOf(championId)} is out of practice. Warm up in Quickplay or on another account before ranked.`);return;}
+  if(action==='practice'){togglePracticeStatus(championId,account.id);return;}
   if(action==='role'||action==='note'){
     const detail=account.championDetails?.[championId]||{role:'',note:''};
     const value=await formDialog(action==='role'?{title:`${nameOf(championId)} role`,label:'Role on this account',choices:[{value:'none',label:'Unassigned'},...ROLES.map(role=>({value:role,label:role}))]}:{title:'Placement reminder',label:'Conditional pick or reminder',value:detail.note,optional:true,maxLength:300});
@@ -83,6 +83,11 @@ async function placementAction(championId,account){
   }
   if(action.startsWith('move:')||action.startsWith('copy:')){const [kind,target]=action.split(':');try{commit(placeChampion(state,championId,target,account.id,kind==='copy'),`${nameOf(championId)} ${kind==='copy'?'copied':'moved'}.`);}catch(e){notify(e.message);}}
   else changeAccounts(accounts=>{const a=accounts.find(a=>a.id===account.id);if(action==='remove'){a.champions=a.champions.filter(c=>c!==championId);if(a.championDetails)delete a.championDetails[championId];}else{const reordered=shift(roleGroup,championId,action==='earlier'?-1:1);let i=0;a.champions=a.champions.map(id=>roleGroup.includes(id)?reordered[i++]:id);}},action==='remove'?'Placement removed. Notes kept.':'Champions reordered.');
+}
+function togglePracticeStatus(championId,accountId){
+  const account=state.accounts.find(a=>a.id===accountId);if(!account?.champions.includes(championId))return;
+  const outOfPractice=Boolean(account.championDetails?.[championId]?.outOfPractice);
+  commit(setOutOfPractice(state,accountId,championId,!outOfPractice),outOfPractice?`${nameOf(championId)} is back in practice.`:`${nameOf(championId)} is out of practice. Warm up in Quickplay or on another account before ranked.`);
 }
 function card(c,account=null){
   const item=el('div',`champ-card${state.notes[c.id]||Object.values(state.matchupNotes[c.id]||{}).some(Boolean)?' has-notes':''}`);item.draggable=true;item.dataset.champion=c.id;if(account)item.dataset.account=account.id;
@@ -103,6 +108,13 @@ function card(c,account=null){
   }
   if(detail?.role)item.append(el('span','role-badge',detail.role));
   if(detail?.note)item.append(el('p','placement-reminder',detail.note));
+  if(account){
+    portrait.title+=' · Ctrl + right-click to toggle practice status';portrait.setAttribute('aria-label',portrait.title);
+    item.addEventListener('contextmenu',event=>{
+      if(!event.ctrlKey||event.button!==2)return;
+      event.preventDefault();event.stopPropagation();togglePracticeStatus(c.id,account.id);
+    });
+  }
   const actions=el('div','card-actions');
   if(account)actions.append(button('Notes',()=>openNotes(c.id),`${c.name} shared notes`),button('•••',()=>placementAction(c.id,account),`Manage ${c.name} on ${account.name}`));
   else actions.append(button('+ Add',()=>addToAccount(c.id),`Add ${c.name} to account`));
