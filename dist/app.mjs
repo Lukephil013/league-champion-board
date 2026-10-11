@@ -1,4 +1,4 @@
-import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, ROLES, groupChampions, moveRole, placeInRole, localDate, validDate, lolalyticsUrl, validOpggUrl, accountProfiles, setAccountProfiles, accountRankedIds, mergeAccounts, championRankedStats, accountRankedSummary, mergeRankedHistories } from './core.mjs';
+import { STORAGE_KEY, initialState, validateState, placeChampion, shift, persistState, setOutOfPractice, ROLES, groupChampions, moveRole, placeInRole, localDate, validDate, lolalyticsUrl, validOpggUrl, accountProfiles, setAccountProfiles, accountRankedIds, mergeAccounts, championRankedStats, accountRankedSummary, mergeRankedHistories } from './core.mjs';
 import { mountAuroraPractice } from './aurora-practice.mjs';
 const $ = s => document.querySelector(s);
 const auroraPractice = mountAuroraPractice($('#practice-view'));
@@ -71,8 +71,10 @@ async function addToAccount(championId,targetId=null){
 }
 async function placementAction(championId,account){
   const roleGroup=groupChampions(account).find(group=>group.champions.includes(championId)).champions,index=roleGroup.indexOf(championId),others=state.accounts.filter(a=>a.id!==account.id&&!a.champions.includes(championId));
-  const choices=[{value:'role',label:'Set role'},{value:'note',label:'Edit placement reminder'},...others.map(a=>({value:`move:${a.id}`,label:`Move to ${a.name}`})),...others.map(a=>({value:`copy:${a.id}`,label:`Copy to ${a.name}`})),...(index>0?[{value:'earlier',label:'Move earlier in this role'}]:[]),...(index<roleGroup.length-1?[{value:'later',label:'Move later in this role'}]:[]),{value:'remove',label:`Remove from ${account.name}`}];
+  const outOfPractice=Boolean(account.championDetails?.[championId]?.outOfPractice);
+  const choices=[{value:'practice',label:outOfPractice?'Mark back in practice':'Mark out of practice'},{value:'role',label:'Set role'},{value:'note',label:'Edit placement reminder'},...others.map(a=>({value:`move:${a.id}`,label:`Move to ${a.name}`})),...others.map(a=>({value:`copy:${a.id}`,label:`Copy to ${a.name}`})),...(index>0?[{value:'earlier',label:'Move earlier in this role'}]:[]),...(index<roleGroup.length-1?[{value:'later',label:'Move later in this role'}]:[]),{value:'remove',label:`Remove from ${account.name}`}];
   const action=await formDialog({title:nameOf(championId),label:'Placement action',choices,submit:'Apply'});if(!action)return;
+  if(action==='practice'){commit(setOutOfPractice(state,account.id,championId,!outOfPractice),outOfPractice?`${nameOf(championId)} is back in practice.`:`${nameOf(championId)} is out of practice. Warm up in Quickplay or on another account before ranked.`);return;}
   if(action==='role'||action==='note'){
     const detail=account.championDetails?.[championId]||{role:'',note:''};
     const value=await formDialog(action==='role'?{title:`${nameOf(championId)} role`,label:'Role on this account',choices:[{value:'none',label:'Unassigned'},...ROLES.map(role=>({value:role,label:role}))]}:{title:'Placement reminder',label:'Conditional pick or reminder',value:detail.note,optional:true,maxLength:300});
@@ -92,6 +94,13 @@ function card(c,account=null){
   const ranked=championRankedStats(state,c.id,account?accountRankedIds(account):null);
   if(ranked.games){const count=el('span','ranked-count',`${ranked.games.toLocaleString()} ranked`);count.title=rankedCoverage(ranked);item.append(count);}
   const detail=account?.championDetails?.[c.id];
+  if(detail?.outOfPractice){
+    item.classList.add('out-of-practice');
+    const reminder='Out of practice — warm up in Quickplay or on another account before ranked.';
+    portrait.title=`${c.name}: ${reminder} Open on LoLalytics`;portrait.setAttribute('aria-label',portrait.title);
+    open.setAttribute('aria-label',`Open ${c.name} notes — out of practice`);
+    item.append(el('span','practice-status','Out of practice'));
+  }
   if(detail?.role)item.append(el('span','role-badge',detail.role));
   if(detail?.note)item.append(el('p','placement-reminder',detail.note));
   const actions=el('div','card-actions');

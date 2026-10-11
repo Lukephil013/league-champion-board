@@ -47,3 +47,4 @@
 .notebook-matchup{display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem;min-width:0}.notebook-matchup .notebook-tab{margin:0;flex:1;min-width:0}.matchup-portrait{display:inline-flex;flex-shrink:0;border:1px solid var(--gold-dark);border-radius:4px;overflow:hidden}.matchup-portrait img{display:block;width:32px;height:32px;object-fit:cover}.matchup-portrait:hover{border-color:var(--gold)}.matchup-portrait:focus-visible{outline:2px solid var(--teal);outline-offset:3px}.notebook-editor-heading h3{display:flex;align-items:center;flex-wrap:wrap;gap:.45rem}
 
 .selected-focus{white-space:pre-line}
+.champ-card.out-of-practice .champ-portrait-link img{filter:grayscale(1);opacity:.72}.practice-status{display:block;color:var(--muted);font-size:.6rem;line-height:1.2;margin:.15rem 0;overflow-wrap:anywhere}

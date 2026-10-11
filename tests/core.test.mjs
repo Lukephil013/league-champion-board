@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, validateState, placeChampion, shift, persistState, STORAGE_KEY, groupChampions, moveRole, placeInRole, validDate, localDate, lolalyticsUrl, validOpggUrl, accountProfiles, setAccountProfiles, accountRankedIds, mergeAccounts, championRankedStats, accountRankedSummary, mergeRankedHistories } from '../dist/core.mjs';
+import { initialState, validateState, placeChampion, shift, persistState, setOutOfPractice, STORAGE_KEY, groupChampions, moveRole, placeInRole, validDate, localDate, lolalyticsUrl, validOpggUrl, accountProfiles, setAccountProfiles, accountRankedIds, mergeAccounts, championRankedStats, accountRankedSummary, mergeRankedHistories } from '../dist/core.mjs';
 const fixture=()=>({...initialState(),accounts:[{id:'a',name:'Jungle',champions:['JarvanIV','Gragas']},{id:'b',name:'Practice',champions:[]}]});
+test('practice status retains placement and notebooks and survives saving, role changes, copying and moving',()=>{
+  const s=fixture();s.accounts[0].championDetails={JarvanIV:{role:'Jungle',note:'Engage'}};s.matchupNotes={JarvanIV:{Yasuo:'Keep notes'}};
+  const changed=setOutOfPractice(s,'a','JarvanIV',true);assert.deepEqual(changed.accounts[0].champions,s.accounts[0].champions);assert.deepEqual(changed.notes,s.notes);assert.deepEqual(changed.matchupNotes,s.matchupNotes);assert.equal(s.accounts[0].championDetails.JarvanIV.outOfPractice,undefined);
+  const restored=validateState(JSON.parse(JSON.stringify(changed)));assert.deepEqual(restored,changed);assert.equal(placeInRole(restored,'JarvanIV','a','Top','a').accounts[0].championDetails.JarvanIV.outOfPractice,true);
+  for(const copy of [true,false])assert.equal(placeChampion(restored,'JarvanIV','b','a',copy).accounts[1].championDetails.JarvanIV.outOfPractice,true);
+  const cleared=setOutOfPractice(restored,'a','JarvanIV',false);assert.deepEqual(cleared,s);assert.equal(setOutOfPractice(s,'a','JarvanIV',false),s);assert.equal(setOutOfPractice(s,'a','Missing',true),s);
+  assert.throws(()=>validateState({...changed,accounts:[{...changed.accounts[0],championDetails:{JarvanIV:{role:'Jungle',note:'',outOfPractice:'true'}}}]}),/valid/);
+});
 test('combining pools retains profile identities, target roles, notes, journal and history',()=>{
   const s=fixture();s.accounts[0].opggUrl='https://op.gg/lol/summoners/na/PlayerOne-NA1';s.accounts[0].championDetails={JarvanIV:{role:'Jungle',note:'Keep'}};
   s.accounts[1].opggUrl='https://op.gg/lol/summoners/na/PlayerTwo-NA1';s.accounts[1].champions=['JarvanIV','Vex'];s.accounts[1].championDetails={JarvanIV:{role:'Top',note:'Different'},Vex:{role:'Mid',note:'Practice'}};

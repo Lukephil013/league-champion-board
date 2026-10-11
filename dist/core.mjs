@@ -103,6 +103,15 @@ export function persistState(storage, state) {
   try { storage.setItem(STORAGE_KEY, JSON.stringify(state)); return { saved:true }; }
   catch { return { saved:false, message:'Browser storage is unavailable or full. Your current changes are still on screen. Export a backup before closing this page.' }; }
 }
+export function setOutOfPractice(state,accountId,championId,outOfPractice){
+  if(typeof outOfPractice!=='boolean')throw new Error('Choose a valid practice status.');
+  const account=state.accounts.find(a=>a.id===accountId);
+  if(!account?.champions.includes(championId)||Boolean(account.championDetails?.[championId]?.outOfPractice)===outOfPractice)return state;
+  const next=structuredClone(state),target=next.accounts.find(a=>a.id===accountId);target.championDetails??={};
+  const detail=target.championDetails[championId]??={role:'',note:''};
+  if(outOfPractice)detail.outOfPractice=true;else delete detail.outOfPractice;
+  return next;
+}
 export function validateState(raw) {
   const fail = () => { throw new Error('This file is not a valid Champion Board backup (versions 1 through 4 are supported).'); };
   const record = x => x !== null && typeof x === 'object' && !Array.isArray(x);
@@ -125,6 +134,7 @@ export function validateState(raw) {
       for(const [champion,detail] of Object.entries(a.championDetails)) {
         if(!id(champion)||!a.champions.includes(champion)||!record(detail)||typeof detail.role!=='string'||(detail.role!==''&&!ROLES.includes(detail.role))||typeof detail.note!=='string'||detail.note.length>300)fail();
         account.championDetails[champion]={role:detail.role,note:detail.note};
+        if(detail.outOfPractice!==undefined){if(typeof detail.outOfPractice!=='boolean')fail();account.championDetails[champion].outOfPractice=detail.outOfPractice;}
       }
     }
     seen.add(a.id); return account;
@@ -159,7 +169,7 @@ export function placeInRole(state, championId, targetId, role, sourceId=null, be
   if(placed===state && !state.accounts.find(a=>a.id===targetId)?.champions.includes(championId))return state;
   const next=placed===state?structuredClone(state):placed,account=next.accounts.find(a=>a.id===targetId);
   if(!account)return state;
-  account.championDetails??={};account.championDetails[championId]={role:role==='Unassigned'?'':role,note:account.championDetails[championId]?.note||''};
+  account.championDetails??={};account.championDetails[championId]={...account.championDetails[championId],role:role==='Unassigned'?'':role,note:account.championDetails[championId]?.note||''};
   return next;
 }
 export function placeChampion(state, championId, targetId, sourceId = null, copy = false, beforeId = null) {
